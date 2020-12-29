@@ -1,7 +1,7 @@
 ## Post-Digress
 Terminal UI application for PostgreSQL.
 
-![Demo](https://github.com/Felipe-Aquino/postdigress/blob/master/demonstration.png)
+![Demo](https://github.com/Felipe-Aquino/postdigress/blob/master/sample.gif)
 
 
 Written in Go, and forged from my struggles and frustations with psql, pgadmin and PostBird.
