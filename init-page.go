@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/rivo/tview"
   "github.com/gdamore/tcell"
-  //"time"
 )
 
 func FormTextValue(form *tview.Form, index int) string {
@@ -36,7 +35,7 @@ func NewInitPage(c *Context) *InitPage {
   if c.info != nil {
     info = c.info
   } else {
-    info = &DBInfo{ "postgres", "postgres", "takeat", "localhost", "5432", false }
+    info = &DBInfo{ "postgres", "", "", "localhost", "5432", false }
   }
 
   ip.form = tview.NewForm()
@@ -45,8 +44,8 @@ func NewInitPage(c *Context) *InitPage {
 		AddInputField("Host", info.host, 0, nil, nil).
 		AddInputField("Port", info.port, 0, nil, nil).
 		AddInputField("User", info.user, 0, nil, nil).
-		//AddInputField("Password", info.pass, 0, nil, nil).
-		AddPasswordField("Password", info.pass, 0, '*', nil).
+		AddInputField("Password", info.pass, 0, nil, nil).
+		//AddPasswordField("Password", info.pass, 0, '*', nil).
 		AddInputField("Database", info.name, 0, nil, nil).
 		AddCheckbox("Enable SSL", info.ssl, nil).
 		AddButton("Connect", func() {
@@ -70,8 +69,7 @@ func NewInitPage(c *Context) *InitPage {
       go c.loading.Init(c.app)
 
       go func () {
-        //time.Sleep(10 * time.Second)
-        db, err := ConnectDb(c.info.user, c.info.pass, c.info.name)
+        db, err := ConnectDb(c.info)
 
         if err != nil {
           c.loading.Close()

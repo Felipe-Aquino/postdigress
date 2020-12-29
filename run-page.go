@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/rivo/tview"
   "github.com/gdamore/tcell"
+  "time"
 )
 
 type TableMode byte
@@ -48,10 +49,6 @@ func NewRunPage(c *Context) *RunPage {
         c.Finish()
       }
     }).
-    SetSelectedFunc(func(row int, column int) {
-      //mp.table.GetCell(row, column).SetTextColor(tcell.ColorRed)
-      //mp.table.SetSelectable(false, false)
-    }).
     SetInputCapture(func (event *tcell.EventKey) *tcell.EventKey {
       if event.Rune() == 'm' {
         rp.tableMode = (rp.tableMode + 1) % 4
@@ -66,16 +63,6 @@ func NewRunPage(c *Context) *RunPage {
     })
 
   TableSetData(rp.table, []string{" "}, [][]string{}, false)
-  /*TableSetData(
-    rp.table,
-    []string{"Field 1", "Field 2", "Field 3", "Field 4", "Field 5", "Field 6", "Field 7", "Field 8", },
-    [][]string{
-      { "F11", "F12", "F13", "F14", "F15", "F16", "F17", "F18" },
-      { "F21", "F22", "F23", "F24", "F25", "F26", "F27", "F28" },
-      { "F31", "F32", "F33", "F34", "F35", "F36", "F37", "F38" },
-      { "F41", "F42", "F43", "F44", "F45", "F46", "F47", "F48" },
-    },
-    false)*/
 
 	rp.modeName = tview.NewTextView().
 		SetDynamicColors(true).
@@ -100,6 +87,8 @@ func NewRunPage(c *Context) *RunPage {
     go c.loading.Init(c.app)
 
     go func () {
+      startTime := time.Now()
+
       var queryResult QueryResult
 
       if len(query) > 0 {
@@ -111,19 +100,23 @@ func NewRunPage(c *Context) *RunPage {
         return
       }
 
+      duration := time.Now().Sub(startTime)
+
       c.loading.Close()
 
       if queryResult.err != nil {
         c.Enqueue(func () {
           rp.statusBar.SetText(queryResult.err.Error())
+          TableSetData(rp.table, []string{}, [][]string{}, false)
         })
       } else if len(queryResult.columns) == 0 {
         c.Enqueue(func () {
-          rp.statusBar.SetText("Finished.")
+          rp.statusBar.SetText("Finished in " + duration.String())
+          TableSetData(rp.table, []string{}, [][]string{}, false)
         })
       } else {
         c.Enqueue(func () {
-          rp.statusBar.SetText("Finished.")
+          rp.statusBar.SetText("Finished in " + duration.String())
 
           TableSetData(rp.table, queryResult.columns, queryResult.values, true)
         })

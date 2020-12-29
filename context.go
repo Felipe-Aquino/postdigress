@@ -21,11 +21,6 @@ const (
   INDEXES
 )
 
-type DBInfo struct {
-  name, user, pass, host, port string
-  ssl bool
-}
-
 type SelectedMenu byte
 const (
   RUN_MENU     SelectedMenu = iota

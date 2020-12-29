@@ -17,8 +17,22 @@ type QueryResult struct {
   err error
 }
 
-func ConnectDb(user, pass, name string) (*sql.DB, error) {
-  connStr := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", user, pass, name)
+type DBInfo struct {
+  name, user, pass, host, port string
+  ssl bool
+}
+
+func ConnectDb(info *DBInfo) (*sql.DB, error) {
+  connStr := ""
+  connStr += " host=" + info.host
+  connStr += " port=" + info.port
+  connStr += " user=" + info.user
+  connStr += " password=" + info.pass
+  connStr += " dbname=" + info.name
+
+  if !info.ssl {
+    connStr += " sslmode=disable"
+  }
 
   db, err := sql.Open("postgres", connStr)
   if err != nil {
