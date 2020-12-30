@@ -32,12 +32,14 @@ type Context struct {
 
   app *tview.Application
   info *DBInfo
+  config *Config
 
 	mainPages *tview.Pages
   menuBar   *tview.TextView
 
   selectedMenu SelectedMenu
 
+  initPage   *InitPage
   runPage    *RunPage
   structPage *StructPage
 

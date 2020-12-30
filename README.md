@@ -16,13 +16,20 @@ go get "github.com/rivo/tview"
 go get "github.com/gdamore/tcell"
 ```
 
+### Run or Build
+
+```bash
+go run *.go
+go build *.go
+```
+
 ### Mind you
-Mouse is disabled for the aplication, at least for this release.
+Mouse is disabled for the aplication, at least for now.
 
 Once you estabilish a connection with the database, the main page will be open to you.
 Notice that the menu has the focus and will be receiving any key event,
 and will make transition between the pages **Execute**, **Structure**,
-**Help** and **Quit**, each one indicating(underline) the key that should be pressed to
+and **Quit**, each one indicating(underline) the key that should be pressed to
 make the transition to that page.
 
 ### Pages
@@ -45,7 +52,6 @@ make the transition to that page.
 
   2. Press _c_ or _i_ to focus on the other panes. You can use the vi-like keys to navigate.
 
-* Help: Show this text that you area currently reading
 * Quit: Quits the application
 
 ### Tricks

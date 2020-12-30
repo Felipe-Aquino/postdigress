@@ -7,56 +7,6 @@ import (
   "sort"
 )
 
-func TableSetData(table *tview.Table, fields []string, values [][]string, showNumbers bool) {
-	cols, rows := len(fields), len(values)
-
-  table.Clear()
-
-  if showNumbers {
-    table.SetCell(0, 0,
-      tview.NewTableCell(" # ").
-        SetTextColor(tcell.ColorYellow).
-        SetAlign(tview.AlignCenter))
-  }
-
-  for j := 0; j < cols; j++ {
-    table.SetCell(0, Tern(showNumbers, j + 1, j),
-      tview.NewTableCell(" " + fields[j] + " ").
-        SetTextColor(tcell.ColorYellow).
-        SetAlign(tview.AlignCenter))
-  }
-
-	for r := 0; r < rows; r++ {
-    if showNumbers {
-      table.SetCell(r + 1, 0,
-        tview.NewTableCell(fmt.Sprintf("%d", r)).
-          SetTextColor(tcell.ColorYellow).
-          SetAlign(tview.AlignCenter))
-    }
-
-    cols = Min(cols, len(values[r]))
-		for c := 0; c < cols; c++ {
-			table.SetCell(r + 1, Tern(showNumbers, c + 1, c),
-				tview.NewTableCell(" " + values[r][c] + " ").
-					SetTextColor(tcell.ColorWhite).
-					SetAlign(tview.AlignLeft))
-		}
-	}
-
-  if rows == 0 {
-    c := Max(0, (cols - 1) / 2)
-    table.SetCell(2, c,
-      tview.NewTableCell(" No Data ").
-        SetTextColor(tcell.ColorBlue).
-        SetAlign(tview.AlignCenter))
-
-    table.SetCell(4, c,
-      tview.NewTableCell(" ").
-        SetTextColor(tcell.ColorBlue).
-        SetAlign(tview.AlignCenter))
-  }
-}
-
 func main() {
 	app := tview.NewApplication()
 	menuBar := tview.NewTextView()
@@ -75,10 +25,14 @@ func main() {
   runPage    := NewRunPage(context)
   structPage := NewStructPage(context)
 
+  context.initPage = initPage
   context.runPage = runPage
   context.structPage = structPage
 
+  connPage := NewConnPage(context)
+
 	mainPages.AddPage("Init", initPage.Layout(), true, true)
+	mainPages.AddPage("Conn", connPage.Layout(), true, false)
 
   sqlPages.
     AddPage("0", runPage.Layout(), true, false).
@@ -126,6 +80,14 @@ func main() {
   context.selectedMenu = RUN_MENU
 
 	mainPages.AddPage("SQL", sqlPages, true, false)
+
+  app.SetInputCapture(func (event *tcell.EventKey) *tcell.EventKey {
+    if event.Key() == tcell.KeyCtrlC {
+      context.Finish()
+      return nil
+    }
+    return event
+  })
 
 	if err := app.SetRoot(mainPages, true).Run(); err != nil {
 		panic(err)

@@ -1,6 +1,11 @@
 package main
 
-import "hash/fnv"
+import (
+	"github.com/rivo/tview"
+  "github.com/gdamore/tcell"
+  "fmt"
+  "hash/fnv"
+)
 
 func IsAlpha(r rune) bool {
   return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
@@ -25,7 +30,6 @@ func IsSpecialChar(r rune) bool {
 func IsWordChar(r rune) bool {
   return IsAlnum(r) || r == '_'
 }
-
 
 func Tern(cond bool, v1, v2 int) int {
   if cond {
@@ -149,3 +153,151 @@ func SSMap(vs [][]string, f func([]string) string) []string {
   }
   return vsm
 }
+
+///* tview *///
+
+func TableSetData(table *tview.Table, fields []string, values [][]string, showNumbers bool) {
+	cols, rows := len(fields), len(values)
+
+  table.Clear()
+
+  if showNumbers {
+    table.SetCell(0, 0,
+      tview.NewTableCell(" # ").
+        SetTextColor(tcell.ColorYellow).
+        SetAlign(tview.AlignCenter))
+  }
+
+  for j := 0; j < cols; j++ {
+    table.SetCell(0, Tern(showNumbers, j + 1, j),
+      tview.NewTableCell(" " + fields[j] + " ").
+        SetTextColor(tcell.ColorYellow).
+        SetAlign(tview.AlignCenter))
+  }
+
+	for r := 0; r < rows; r++ {
+    if showNumbers {
+      table.SetCell(r + 1, 0,
+        tview.NewTableCell(fmt.Sprintf("%d", r)).
+          SetTextColor(tcell.ColorYellow).
+          SetAlign(tview.AlignCenter))
+    }
+
+    cols = Min(cols, len(values[r]))
+		for c := 0; c < cols; c++ {
+			table.SetCell(r + 1, Tern(showNumbers, c + 1, c),
+				tview.NewTableCell(" " + values[r][c] + " ").
+					SetTextColor(tcell.ColorWhite).
+					SetAlign(tview.AlignLeft))
+		}
+	}
+
+  if rows == 0 {
+    c := Max(0, (cols - 1) / 2)
+    table.SetCell(2, c,
+      tview.NewTableCell(" No Data ").
+        SetTextColor(tcell.ColorBlue).
+        SetAlign(tview.AlignCenter))
+
+    table.SetCell(4, c,
+      tview.NewTableCell(" ").
+        SetTextColor(tcell.ColorBlue).
+        SetAlign(tview.AlignCenter))
+  }
+}
+
+func GetFormInputValue(form *tview.Form, index int) string {
+  field, ok := form.GetFormItem(index).(*tview.InputField)
+  if ok {
+    return field.GetText()
+  }
+  return ""
+}
+
+func GetFormCheckValue(form *tview.Form, index int) bool {
+  check, ok := form.GetFormItem(index).(*tview.Checkbox)
+  if ok {
+    return check.IsChecked()
+  }
+  return false
+}
+
+func SetFormInputValue(form *tview.Form, index int, value string) {
+  field, ok := form.GetFormItem(index).(*tview.InputField)
+  if ok {
+    field.SetText(value)
+  }
+}
+
+func SetFormCheckValue(form *tview.Form, index int, value bool) {
+  check, ok := form.GetFormItem(index).(*tview.Checkbox)
+  if ok {
+    check.SetChecked(value)
+  }
+}
+
+func GetFormKeyHandler(
+  app *tview.Application,
+  form *tview.Form, items,
+  buttons int) func (event *tcell.EventKey) *tcell.EventKey {
+
+  return func (event *tcell.EventKey) *tcell.EventKey {
+    idx, btn := form.GetFocusedItemIndex()
+
+    if btn == -1 {
+      switch event.Key() {
+      case tcell.KeyDown:  fallthrough
+      case tcell.KeyCtrlJ: fallthrough
+      case tcell.KeyTab:
+        idx = idx + 1
+        if idx < items {
+          item := form.GetFormItem(idx)
+          app.SetFocus(item)
+        } else {
+          item := form.GetButton(0)
+          app.SetFocus(item)
+        }
+
+        return nil
+      case tcell.KeyUp: fallthrough
+      case tcell.KeyCtrlK:
+        idx--
+        if idx < 0 {
+          item := form.GetButton(0)
+          app.SetFocus(item)
+          return nil
+        }
+        item := form.GetFormItem(idx)
+        app.SetFocus(item)
+      }
+    } else {
+      switch event.Key() {
+      case tcell.KeyDown: fallthrough
+      case tcell.KeyCtrlJ:
+        item := form.GetFormItem(0)
+        app.SetFocus(item)
+      case tcell.KeyUp: fallthrough
+      case tcell.KeyCtrlK:
+        item := form.GetFormItem(items - 1)
+        app.SetFocus(item)
+      case tcell.KeyLeft:  fallthrough
+      case tcell.KeyCtrlH: fallthrough
+      case tcell.KeyRight: fallthrough
+      case tcell.KeyCtrlL:
+        item := form.GetButton((btn + 1) % buttons)
+        app.SetFocus(item)
+      case tcell.KeyTab:
+        if btn == 0 {
+          item := form.GetButton((btn + 1) % buttons)
+          app.SetFocus(item)
+        } else {
+          item := form.GetFormItem(0)
+          app.SetFocus(item)
+        }
+        return nil
+      }
+    }
+    return event
+  }
+}
+

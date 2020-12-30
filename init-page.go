@@ -5,22 +5,6 @@ import (
   "github.com/gdamore/tcell"
 )
 
-func FormTextValue(form *tview.Form, index int) string {
-  field, ok := form.GetFormItem(index).(*tview.InputField)
-  if ok {
-    return field.GetText()
-  }
-  return ""
-}
-
-func FormCheckValue(form *tview.Form, index int) bool {
-  check, ok := form.GetFormItem(index).(*tview.Checkbox)
-  if ok {
-    return check.IsChecked()
-  }
-  return false
-}
-
 type InitPage struct {
 	msg    *tview.TextView
   form   *tview.Form
@@ -28,15 +12,28 @@ type InitPage struct {
 }
 
 func NewInitPage(c *Context) *InitPage {
+  msg := ""
+  config, err := ReadConfigFile()
+
+  if err != nil {
+    config = &Config{[]Connection{}}
+    if err.Error() == "json_error" {
+      msg = "Invalid config file found."
+    }
+  }
+
+  c.config = config
+
+  info := DefaultDbInfo(c.config)
+
   ip := &InitPage{}
 
-  var info *DBInfo = nil
+	ip.msg = tview.NewTextView().
+    SetDynamicColors(true).
+    SetRegions(true).
+    SetTextAlign(tview.AlignCenter)
 
-  if c.info != nil {
-    info = c.info
-  } else {
-    info = &DBInfo{ "postgres", "", "", "localhost", "5432", false }
-  }
+  ip.msg.SetText("\n[wheat]Ctrl-C to quit[white]\n" + msg)
 
   ip.form = tview.NewForm()
 
@@ -57,12 +54,12 @@ func NewInitPage(c *Context) *InitPage {
       }
 
       c.info = &DBInfo{
-        host: FormTextValue(ip.form, 0),
-        port: FormTextValue(ip.form, 1),
-        user: FormTextValue(ip.form, 2),
-        pass: FormTextValue(ip.form, 3),
-        name: FormTextValue(ip.form, 4),
-        ssl: FormCheckValue(ip.form, 5),
+        host: GetFormInputValue(ip.form, 0),
+        port: GetFormInputValue(ip.form, 1),
+        user: GetFormInputValue(ip.form, 2),
+        pass: GetFormInputValue(ip.form, 3),
+        name: GetFormInputValue(ip.form, 4),
+        ssl:  GetFormCheckValue(ip.form, 5),
       }
 
       c.loading.SetTextView(ip.msg)
@@ -88,8 +85,8 @@ func NewInitPage(c *Context) *InitPage {
 
       }()
     }).
-		AddButton("Quit", func() {
-			c.Finish()
+		AddButton("Save", func() {
+      c.mainPages.SwitchToPage("Conn")
 		})
 
   ip.form.
@@ -103,71 +100,10 @@ func NewInitPage(c *Context) *InitPage {
     SetTitle(" Connection ").
     SetTitleAlign(tview.AlignLeft)
 
+  handler := GetFormKeyHandler(c.app, ip.form, 6, 2)
+
   ip.form.
-    SetInputCapture(func (event *tcell.EventKey) *tcell.EventKey {
-      idx, btn := ip.form.GetFocusedItemIndex()
-
-      if btn == -1 {
-        if event.Key() == tcell.KeyDown ||
-           event.Key() == tcell.KeyCtrlJ ||
-           event.Key() == tcell.KeyTab {
-
-          idx = idx + 1
-          if idx < 6 {
-            item := ip.form.GetFormItem(idx)
-            c.app.SetFocus(item)
-          } else {
-            item := ip.form.GetButton(0)
-            c.app.SetFocus(item)
-            return nil
-          }
-
-          return nil
-
-        } else if event.Key() == tcell.KeyUp || event.Key() == tcell.KeyCtrlK {
-          idx--
-          if idx < 0 {
-            item := ip.form.GetButton(0)
-            c.app.SetFocus(item)
-            return nil
-          }
-          item := ip.form.GetFormItem(idx)
-          c.app.SetFocus(item)
-        }
-
-      } else {
-        if event.Key() == tcell.KeyDown || event.Key() == tcell.KeyCtrlJ {
-          item := ip.form.GetFormItem(0)
-          c.app.SetFocus(item)
-
-        } else if event.Key() == tcell.KeyUp || event.Key() == tcell.KeyCtrlK {
-          item := ip.form.GetFormItem(5)
-          c.app.SetFocus(item)
-
-        } else if event.Key() == tcell.KeyLeft || event.Key() == tcell.KeyCtrlH {
-          item := ip.form.GetButton((btn + 1) % 2)
-          c.app.SetFocus(item)
-
-        } else if event.Key() == tcell.KeyRight || event.Key() == tcell.KeyCtrlL {
-          item := ip.form.GetButton((btn + 1) % 2)
-          c.app.SetFocus(item)
-
-        } else if event.Key() == tcell.KeyTab {
-          if btn == 0 {
-            item := ip.form.GetButton((btn + 1) % 2)
-            c.app.SetFocus(item)
-          } else {
-            item := ip.form.GetFormItem(0)
-            c.app.SetFocus(item)
-          }
-
-          return nil
-        }
-      }
-      return event
-    })
-
-	ip.msg = tview.NewTextView().SetRegions(true)
+    SetInputCapture(handler)
 
 	ip.layout = tview.NewGrid().
 		SetBorders(false).
@@ -183,3 +119,29 @@ func (ip *InitPage) Layout() tview.Primitive {
   return ip.layout
 }
 
+func (ip *InitPage) UpdateForm(c *Connection) {
+  SetFormInputValue(ip.form, 0, c.Host)
+  SetFormInputValue(ip.form, 1, c.Port)
+  SetFormInputValue(ip.form, 2, c.User)
+  SetFormInputValue(ip.form, 3, c.Pass)
+  SetFormInputValue(ip.form, 4, c.Db)
+  SetFormCheckValue(ip.form, 5, c.Ssl)
+}
+
+func DefaultDbInfo(c *Config) *DBInfo {
+  info := &DBInfo{ user: "postgres", host: "localhost", port: "5432" }
+
+  for i := 0; i < len(c.Connections); i++ {
+    if c.Connections[i].IsDefault {
+      info.user = c.Connections[i].User
+      info.name = c.Connections[i].Db
+      info.host = c.Connections[i].Host
+      info.port = c.Connections[i].Port
+      info.pass = c.Connections[i].Pass
+      info.ssl = c.Connections[i].Ssl
+      break
+    }
+  }
+
+  return info
+}
