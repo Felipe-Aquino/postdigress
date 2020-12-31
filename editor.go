@@ -143,7 +143,11 @@ func (e *Editor) InsertYankedWordAfter(row, col int) {
     line := e.lines[row]
 
     if col <= 0 {
-      e.lines[row] = " " + e.yankedBuffer + line
+      e.lines[row] = ""
+      if len(e.lines[row]) != 0 {
+        e.lines[row] = " "
+      }
+      e.lines[row] += e.yankedBuffer + line
     } else if col < len(line) - 1 {
       e.lines[row] = line[:col + 1] + e.yankedBuffer + line[col + 1:]
     } else {
@@ -265,6 +269,21 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
       e.buffCommand = ""
     }
 
+    if ch == rune(0) {
+      switch key {
+      case tcell.KeyDown:
+        e.MoveCursorDown()
+      case tcell.KeyUp:
+        e.MoveCursorUp()
+      case tcell.KeyRight:
+        e.MoveCursorRight()
+      case tcell.KeyLeft:
+        e.MoveCursorLeft()
+      }
+      e.UpdateText()
+      return false
+    }
+
     switch ch {
     case 'q':
       return true
@@ -308,8 +327,17 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
       e.cursorX = 0
       e.SetMode(INSERT)
     case 'p':
-      e.InsertYankedWordAfter(e.cursorY, e.cursorX)
-      e.cursorX += len(e.yankedBuffer)
+      e.PasteYankedBuffer()
+    case 'D':
+      if e.cursorX < len(e.lines[e.cursorY]) {
+        e.yankedBuffer = e.lines[e.cursorY][e.cursorX:]
+        e.lines[e.cursorY] = e.lines[e.cursorY][:e.cursorX]
+        e.fullText = ""
+      }
+    case 'Y':
+      if e.cursorX < len(e.lines[e.cursorY]) {
+        e.yankedBuffer = e.lines[e.cursorY][e.cursorX:]
+      }
     case 'r', 'd', 'y':
       e.buffCommand = string(ch)
     }
@@ -344,6 +372,14 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
     switch key {
     case tcell.KeyESC:
       e.SetMode(NORMAL)
+    case tcell.KeyDown:
+      e.MoveCursorDown()
+    case tcell.KeyUp:
+      e.MoveCursorUp()
+    case tcell.KeyRight:
+      e.MoveCursorRight()
+    case tcell.KeyLeft:
+      e.MoveCursorLeft()
     case tcell.KeyBackspace2:
       linesLen, rowLen := len(e.lines), 0
 
@@ -379,12 +415,6 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
   return false
 }
 
-/*
-func FindNextWordStart(text []string, i, j int) (int, int, bool) {
-func FindPrevWordEnd(text []string, i, j int) (int, int, bool) {
-func FindPrevWordStart(text []string, i, j int) (int, int, bool) {
-func FindNextWordEnd(text []string, i, j int) (int, int, bool) {
-*/
 func (e *Editor) YankCurrentWord(fromStart bool) {
   if fromStart {
     yStart, xStart, ok1 := FindPrevWordStart(e.lines, e.cursorY, e.cursorX)
@@ -457,12 +487,39 @@ func (e *Editor) DeleteCurrentWord(fromStart bool) {
   }
 }
 
+func (e *Editor) YankCurrentLine() {
+  e.yankedBuffer = "\n" + e.lines[e.cursorY]
+}
+
+func (e *Editor) DelYankCurrentLine() {
+  e.YankCurrentLine()
+  if len(e.lines) > 1 {
+    e.lines = append(e.lines[:e.cursorY], e.lines[e.cursorY + 1:]...)
+  } else {
+    e.lines = []string{""}
+  }
+
+  e.cursorY = Min(e.cursorY, len(e.lines) - 1)
+}
+
+func (e *Editor) PasteYankedBuffer() {
+  if len(e.yankedBuffer) > 0 {
+    if e.yankedBuffer[0] == '\n' {
+      end := Max(0, len(e.lines[e.cursorY]))
+      e.NewLineAfter(e.cursorY, end)
+      e.lines[e.cursorY + 1] = e.yankedBuffer[1:]
+    } else {
+      e.InsertYankedWordAfter(e.cursorY, e.cursorX)
+      e.cursorX += len(e.yankedBuffer)
+    }
+  }
+}
+
 func (e *Editor) HandleBufferedCommand(ch rune) {
   switch e.buffCommand[0] {
   case 'r':
     e.DeleteCharBefore(e.cursorY, e.cursorX + 1)
     e.InsertCharBefore(ch, e.cursorY, e.cursorX)
-    e.buffCommand = ""
     e.fullText = ""
   case 'y':
     switch ch {
@@ -475,7 +532,12 @@ func (e *Editor) HandleBufferedCommand(ch rune) {
     case 'w':
       fromStart := len(e.buffCommand) > 1
       e.YankCurrentWord(fromStart)
-      e.buffCommand = ""
+    case '$':
+      if e.cursorX < len(e.lines[e.cursorY]) {
+        e.yankedBuffer = e.lines[e.cursorY][e.cursorX:]
+      }
+    case 'y':
+      e.YankCurrentLine()
     }
   case 'd':
     switch ch {
@@ -485,16 +547,24 @@ func (e *Editor) HandleBufferedCommand(ch rune) {
       } else {
         e.buffCommand = "di"
       }
+      return
     case 'w':
       fromStart := len(e.buffCommand) > 1
       e.DeleteCurrentWord(fromStart)
-      e.buffCommand = ""
+      e.fullText = ""
+    case '$':
+      if e.cursorX < len(e.lines[e.cursorY]) {
+        e.yankedBuffer = e.lines[e.cursorY][e.cursorX:]
+        e.lines[e.cursorY] = e.lines[e.cursorY][:e.cursorX]
+        e.fullText = ""
+      }
+    case 'd':
+      e.DelYankCurrentLine()
       e.fullText = ""
     }
-  default:
-    e.buffCommand = ""
   }
 
+  e.buffCommand = ""
 }
 
 func (e *Editor) SetMode(m Mode) {

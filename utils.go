@@ -246,9 +246,7 @@ func GetFormKeyHandler(
 
     if btn == -1 {
       switch event.Key() {
-      case tcell.KeyDown:  fallthrough
-      case tcell.KeyCtrlJ: fallthrough
-      case tcell.KeyTab:
+      case tcell.KeyDown, tcell.KeyCtrlJ, tcell.KeyTab, tcell.KeyCtrlN:
         idx = idx + 1
         if idx < items {
           item := form.GetFormItem(idx)
@@ -259,8 +257,7 @@ func GetFormKeyHandler(
         }
 
         return nil
-      case tcell.KeyUp: fallthrough
-      case tcell.KeyCtrlK:
+      case tcell.KeyUp, tcell.KeyCtrlK, tcell.KeyCtrlP:
         idx--
         if idx < 0 {
           item := form.GetButton(0)
@@ -272,18 +269,13 @@ func GetFormKeyHandler(
       }
     } else {
       switch event.Key() {
-      case tcell.KeyDown: fallthrough
-      case tcell.KeyCtrlJ:
+      case tcell.KeyDown, tcell.KeyCtrlJ, tcell.KeyCtrlN:
         item := form.GetFormItem(0)
         app.SetFocus(item)
-      case tcell.KeyUp: fallthrough
-      case tcell.KeyCtrlK:
+      case tcell.KeyUp, tcell.KeyCtrlK, tcell.KeyCtrlP:
         item := form.GetFormItem(items - 1)
         app.SetFocus(item)
-      case tcell.KeyLeft:  fallthrough
-      case tcell.KeyCtrlH: fallthrough
-      case tcell.KeyRight: fallthrough
-      case tcell.KeyCtrlL:
+      case tcell.KeyLeft, tcell.KeyCtrlH, tcell.KeyRight, tcell.KeyCtrlL:
         item := form.GetButton((btn + 1) % buttons)
         app.SetFocus(item)
       case tcell.KeyTab:
