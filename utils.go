@@ -146,6 +146,10 @@ func U8Charsize(ch int) int {
   return 4
 }
 
+func SClone(vs []string) []string {
+  return append([]string{}, vs...)
+}
+
 func SSMap(vs [][]string, f func([]string) string) []string {
   vsm := make([]string, len(vs))
   for i, v := range vs {

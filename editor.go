@@ -42,6 +42,7 @@ type VisualSelect struct {
 
 type Editor struct {
   tv *tview.TextView
+  history *DumbHistory
 
   lines []string
   mode Mode
@@ -80,6 +81,8 @@ func NewEditor() *Editor {
     },
   }
 
+  e.history = NewDumbHistory(5)
+
   e.tokenizer = NewTokenizer()
   e.fullText = ""
 
@@ -100,6 +103,11 @@ func NewEditor() *Editor {
   //e.tv.Highlight("cursor")
 
   return e
+}
+
+func (e *Editor) SaveHistory() {
+  es := NewEditorState(SClone(e.lines), e.cursorX, e.cursorY)
+  e.history.Add(es)
 }
 
 func (e *Editor) AddLine(line string) {
@@ -279,6 +287,12 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
         e.MoveCursorRight()
       case tcell.KeyLeft:
         e.MoveCursorLeft()
+      case tcell.KeyCtrlR:
+        state := e.history.Redo()
+        if state != nil {
+          e.lines, e.cursorX, e.cursorY = state.Unpack()
+          e.fullText = ""
+        }
       }
       e.UpdateText()
       return false
@@ -306,30 +320,37 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
       e.tv.Highlight("visual")
       e.SetMode(VISUAL)
     case 'i':
+      e.SaveHistory()
       e.SetMode(INSERT)
     case 'a':
+      e.SaveHistory()
       e.MoveCursorRight()
       e.SetMode(INSERT)
     case 'x':
+      e.SaveHistory()
       e.DeleteCharBefore(e.cursorY, e.cursorX + 1)
     case '0':
       e.MoveCursorToLineStart()
     case '$':
       e.MoveCursorToLineEnd()
     case 'o':
+      e.SaveHistory()
       end := Max(0, len(e.lines[e.cursorY]))
       e.NewLineAfter(e.cursorY, end)
       e.MoveCursorDown()
       e.cursorX = 0
       e.SetMode(INSERT)
     case 'O':
+      e.SaveHistory()
       e.NewLineAfter(e.cursorY, 0)
       e.cursorX = 0
       e.SetMode(INSERT)
     case 'p':
+      e.SaveHistory()
       e.PasteYankedBuffer()
     case 'D':
       if e.cursorX < len(e.lines[e.cursorY]) {
+        e.SaveHistory()
         e.yankedBuffer = e.lines[e.cursorY][e.cursorX:]
         e.lines[e.cursorY] = e.lines[e.cursorY][:e.cursorX]
         e.fullText = ""
@@ -340,6 +361,17 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
       }
     case 'r', 'd', 'y':
       e.buffCommand = string(ch)
+    case 'u':
+      if e.history.Current() == nil {
+        e.SaveHistory()
+        e.history.Undo()
+      }
+
+      state := e.history.Undo()
+      if state != nil {
+        e.lines, e.cursorX, e.cursorY = state.Unpack()
+        e.fullText = ""
+      }
     }
   } else if e.mode == VISUAL {
     switch ch {
@@ -518,6 +550,7 @@ func (e *Editor) PasteYankedBuffer() {
 func (e *Editor) HandleBufferedCommand(ch rune) {
   switch e.buffCommand[0] {
   case 'r':
+    e.SaveHistory()
     e.DeleteCharBefore(e.cursorY, e.cursorX + 1)
     e.InsertCharBefore(ch, e.cursorY, e.cursorX)
     e.fullText = ""
@@ -549,16 +582,19 @@ func (e *Editor) HandleBufferedCommand(ch rune) {
       }
       return
     case 'w':
+      e.SaveHistory()
       fromStart := len(e.buffCommand) > 1
       e.DeleteCurrentWord(fromStart)
       e.fullText = ""
     case '$':
       if e.cursorX < len(e.lines[e.cursorY]) {
+        e.SaveHistory()
         e.yankedBuffer = e.lines[e.cursorY][e.cursorX:]
         e.lines[e.cursorY] = e.lines[e.cursorY][:e.cursorX]
         e.fullText = ""
       }
     case 'd':
+      e.SaveHistory()
       e.DelYankCurrentLine()
       e.fullText = ""
     }
