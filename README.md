@@ -35,7 +35,7 @@ make the transition to that page.
 ### Pages
 * Execute: Has an editor, a table viewer and a status bar at bottom.
   1. Press Ctrl-E to enter the editor. You can navigate thought the text using
-  the following vi-like keybindings _h_, _j_, _k_, _l_, _w_, _e_, _b_, _i_, _a_,
+  the following vi-like keybindings _h_, _j_, _k_, _l_, _w_, _e_, _b_, _i_, _a_, _x_, _o_, _O_, _p_, _r_, _d(i)w_, _y(i)w_,
   more yet to come. Press _v_ and _j_ or _k_ to select the queries you wish to execute.
   Press _q_, on select mode, to put you back on normal mode.
   Press _q_, on normal mode, to exit the editor, this will put the menu on focus.

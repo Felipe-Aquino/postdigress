@@ -56,6 +56,9 @@ type Editor struct {
   onExecute func(string)
 
   selected VisualSelect
+
+  buffCommand string // buffer that save a multi-letter command
+  yankedBuffer string  // buffer use to save copied/deleted text
 }
 
 func NewEditor() *Editor {
@@ -135,6 +138,22 @@ func (e *Editor) NewLineAfter(row, col int) {
   e.fullText = ""
 }
 
+func (e *Editor) InsertYankedWordAfter(row, col int) {
+  if row >= 0 && row < len(e.lines) {
+    line := e.lines[row]
+
+    if col <= 0 {
+      e.lines[row] = " " + e.yankedBuffer + line
+    } else if col < len(line) - 1 {
+      e.lines[row] = line[:col + 1] + e.yankedBuffer + line[col + 1:]
+    } else {
+      e.lines[row] = line + e.yankedBuffer
+    }
+
+    e.fullText = ""
+  }
+}
+
 func (e *Editor) InsertCharBefore(ch rune, row, col int) {
   if row >= 0 && row < len(e.lines) {
     line := e.lines[row]
@@ -204,6 +223,16 @@ func (e *Editor) MoveCursorLeft() {
   }
 }
 
+func (e *Editor) MoveCursorToLineStart() {
+  e.cursorX = 0
+}
+
+func (e *Editor) MoveCursorToLineEnd() {
+  if len(e.lines[e.cursorY]) > 0 {
+    e.cursorX = len(e.lines[e.cursorY]) - 1
+  }
+}
+
 func (e *Editor) MoveCursorToNextWordStart() {
   i, j, found := FindNextWordStart(e.lines, e.cursorY, e.cursorX)
   if found {
@@ -228,6 +257,14 @@ func (e *Editor) MoveCursorToPrevWordStart() {
 func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
   //fmt.Printf("- %V %V %V\n", ch, key, tcell.KeyBS)
   if e.mode == NORMAL {
+    if e.buffCommand != "" && ch != rune(0) {
+      e.HandleBufferedCommand(ch)
+      e.UpdateText()
+      return false
+    } else {
+      e.buffCommand = ""
+    }
+
     switch ch {
     case 'q':
       return true
@@ -254,6 +291,27 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
     case 'a':
       e.MoveCursorRight()
       e.SetMode(INSERT)
+    case 'x':
+      e.DeleteCharBefore(e.cursorY, e.cursorX + 1)
+    case '0':
+      e.MoveCursorToLineStart()
+    case '$':
+      e.MoveCursorToLineEnd()
+    case 'o':
+      end := Max(0, len(e.lines[e.cursorY]))
+      e.NewLineAfter(e.cursorY, end)
+      e.MoveCursorDown()
+      e.cursorX = 0
+      e.SetMode(INSERT)
+    case 'O':
+      e.NewLineAfter(e.cursorY, 0)
+      e.cursorX = 0
+      e.SetMode(INSERT)
+    case 'p':
+      e.InsertYankedWordAfter(e.cursorY, e.cursorX)
+      e.cursorX += len(e.yankedBuffer)
+    case 'r', 'd', 'y':
+      e.buffCommand = string(ch)
     }
   } else if e.mode == VISUAL {
     switch ch {
@@ -319,6 +377,124 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
 
   e.UpdateText()
   return false
+}
+
+/*
+func FindNextWordStart(text []string, i, j int) (int, int, bool) {
+func FindPrevWordEnd(text []string, i, j int) (int, int, bool) {
+func FindPrevWordStart(text []string, i, j int) (int, int, bool) {
+func FindNextWordEnd(text []string, i, j int) (int, int, bool) {
+*/
+func (e *Editor) YankCurrentWord(fromStart bool) {
+  if fromStart {
+    yStart, xStart, ok1 := FindPrevWordStart(e.lines, e.cursorY, e.cursorX)
+    yEnd,   xEnd,   ok2 := FindNextWordEnd(e.lines, e.cursorY, e.cursorX)
+
+    if !ok1 || !ok2 || yStart != yEnd {
+      // TODO: put some error
+      return
+    }
+
+    if xEnd < len(e.lines) {
+      e.yankedBuffer = e.lines[yStart][xStart: xEnd + 1]
+    } else {
+      e.yankedBuffer = e.lines[yStart][xStart:]
+    }
+  } else {
+    yStart, xStart := e.cursorY, e.cursorX
+    yEnd,   xEnd, ok := FindNextWordEnd(e.lines, e.cursorY, e.cursorX)
+
+    if !ok || yStart != yEnd {
+      // TODO: put some error
+      return
+    }
+
+    if xEnd < len(e.lines) {
+      e.yankedBuffer = e.lines[yStart][xStart: xEnd + 1]
+    } else {
+      e.yankedBuffer = e.lines[yStart][xStart:]
+    }
+  }
+}
+
+func (e *Editor) DeleteCurrentWord(fromStart bool) {
+  if fromStart {
+    yStart, xStart, ok1 := FindPrevWordStart(e.lines, e.cursorY, e.cursorX)
+    yEnd,   xEnd,   ok2 := FindNextWordEnd(e.lines, e.cursorY, e.cursorX)
+
+    if !ok1 || !ok2 || yStart != yEnd {
+      // TODO: put some error
+      return
+    }
+
+    if xEnd < len(e.lines[yStart]) {
+      e.yankedBuffer = e.lines[yStart][xStart: xEnd + 1]
+      e.lines[yStart] = e.lines[yStart][:xStart] + e.lines[yStart][xEnd + 1:]
+      e.cursorX = xStart
+    } else {
+      e.yankedBuffer = e.lines[yStart][xStart:]
+      e.lines[yStart] = e.lines[yStart][:xStart]
+      e.cursorX = xStart
+    }
+  } else {
+    yStart, xStart := e.cursorY, e.cursorX
+    yEnd,   xEnd, ok := FindNextWordEnd(e.lines, e.cursorY, e.cursorX)
+
+    if !ok || yStart != yEnd {
+      // TODO: put some error
+      return
+    }
+
+    if xEnd < len(e.lines[yStart]) {
+      e.yankedBuffer = e.lines[yStart][xStart: xEnd + 1]
+      e.lines[yStart] = e.lines[yStart][:xStart] + e.lines[yStart][xEnd + 1:]
+      e.cursorX = xStart
+    } else {
+      e.yankedBuffer = e.lines[yStart][xStart:]
+      e.lines[yStart] = e.lines[yStart][:xStart]
+      e.cursorX = xStart
+    }
+  }
+}
+
+func (e *Editor) HandleBufferedCommand(ch rune) {
+  switch e.buffCommand[0] {
+  case 'r':
+    e.DeleteCharBefore(e.cursorY, e.cursorX + 1)
+    e.InsertCharBefore(ch, e.cursorY, e.cursorX)
+    e.buffCommand = ""
+    e.fullText = ""
+  case 'y':
+    switch ch {
+    case 'i':
+      if len(e.buffCommand) > 1 {
+        e.buffCommand = ""
+      } else {
+        e.buffCommand = "yi"
+      }
+    case 'w':
+      fromStart := len(e.buffCommand) > 1
+      e.YankCurrentWord(fromStart)
+      e.buffCommand = ""
+    }
+  case 'd':
+    switch ch {
+    case 'i':
+      if len(e.buffCommand) > 1 {
+        e.buffCommand = ""
+      } else {
+        e.buffCommand = "di"
+      }
+    case 'w':
+      fromStart := len(e.buffCommand) > 1
+      e.DeleteCurrentWord(fromStart)
+      e.buffCommand = ""
+      e.fullText = ""
+    }
+  default:
+    e.buffCommand = ""
+  }
+
 }
 
 func (e *Editor) SetMode(m Mode) {
