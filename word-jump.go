@@ -1,10 +1,5 @@
 package main
 
-import (
-  "fmt"
-  "strconv"
-)
-
 type Validator func(rune) bool
 
 func StrReadWhileBackwards(text string, start int, isValid Validator) int {
