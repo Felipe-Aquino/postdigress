@@ -210,6 +210,84 @@ func FindNextWordEnd(text []string, i, j int) (int, int, bool) {
   return i, j, found
 }
 
+func FindCharForwards(text []string, ch rune, i, j int, multiline bool) (int, int, bool) {
+
+  found := false
+
+  if i > len(text) - 1 {
+    return i, j, found
+  }
+
+  if multiline {
+
+  multiln1:
+    for i < len(text) {
+      for j < len(text[i]) {
+        if rune(text[i][j]) == ch {
+          found = true
+          break multiln1
+        }
+        j++
+      }
+      i++
+      j = 0
+    }
+
+  } else {
+
+    for j < len(text[i]) {
+      if rune(text[i][j]) == ch {
+        found = true
+        break
+      }
+      j++
+    }
+  }
+
+  return i, j, found
+}
+
+func FindCharBackwards(text []string, ch rune, i, j int, multiline bool) (int, int, bool) {
+  found := false
+
+  if i > len(text) - 1 {
+    return i, j, found
+  }
+
+  if multiline {
+
+  multiln2:
+    for {
+      for j >= 0 {
+        if rune(text[i][j]) == ch {
+          found = true
+          break multiln2
+        }
+        j--
+      }
+
+      i--
+      if i < 0 {
+        break multiln2
+      }
+
+      j = len(text[i]) - 1
+    }
+
+  } else {
+
+    for j >= 0 {
+      if rune(text[i][j]) == ch {
+        found = true
+        break
+      }
+      j--
+    }
+  }
+
+  return i, j, found
+}
+
 func Replace(s string, r rune, at int) string {
   if at > len(s) - 1 {
     return s
@@ -220,36 +298,4 @@ func Replace(s string, r rune, at int) string {
   }
 
   return s[:at] + string(r) + s[at + 1:]
-}
-
-func word_test_main() {
-  text := []string{"== word1-//-word2 word3", "", "word4"}
-  i, j := 0, 0
-
-  found := true
-
-  mask := [3]string{}
-  for l, line := range text {
-    mask[l] = fmt.Sprintf("%" + strconv.Itoa(len(line)) + "s", " ")
-  }
-
-  for {
-    //i, j, found = FindNextWordStart(text, i, j)
-    //i, j, found = FindPrevWordEnd(text, i, j)
-    //i, j, found = FindPrevWordStart(text, i, j)
-    i, j, found = FindNextWordEnd(text, i, j)
-    if !found {
-      break
-    }
-    mask[i] = Replace(mask[i], '^', j)
-
-    fmt.Printf("%d, %d\n", i, j)
-    //break
-  }
-
-  for l, line := range text {
-    fmt.Println(line)
-    fmt.Println(mask[l])
-    fmt.Print("\n")
-  }
 }

@@ -44,7 +44,7 @@ type Editor struct {
   tv *tview.TextView
   history *DumbHistory
 
-  lines []string
+  text Text
   mode Mode
 
   cursorX, cursorY int
@@ -59,13 +59,13 @@ type Editor struct {
   selected VisualSelect
 
   buffCommand string // buffer that save a multi-letter command
-  yankedBuffer string  // buffer use to save copied/deleted text
+  yankedLines Text  // used to save copied/deleted text
 }
 
 func NewEditor() *Editor {
   e := &Editor{
     tv: tview.NewTextView(),
-    lines: []string{
+    text: Text([]string{
       "-- just a commnet", 
       "select * from test;",
       "",
@@ -73,7 +73,7 @@ func NewEditor() *Editor {
       "('fifth', 30, '2020-10-10 22:22:22Z')",
       "",
       "/* multiline comment */",
-    },
+    }),
     mode: NORMAL,
     onModeChanged: func(m Mode) {
     },
@@ -106,106 +106,48 @@ func NewEditor() *Editor {
 }
 
 func (e *Editor) SaveHistory() {
-  es := NewEditorState(SClone(e.lines), e.cursorX, e.cursorY)
+  es := NewEditorState(e.text.Clone(), e.cursorX, e.cursorY)
   e.history.Add(es)
 }
 
-func (e *Editor) AddLine(line string) {
-  e.lines = append(e.lines, line)
-}
-
-func (e *Editor) AddLineAt(line string, at int) {
-  if at >= 0 && at < len(e.lines) {
-    e.lines = append(e.lines, "")
-    copy(e.lines[at + 1:] , e.lines[at:])
-    e.lines[at] = line
-  } else {
-    e.AddLine(line)
-  }
-}
-
-func (e *Editor) NewLineAfter(row, col int) {
-  if row >= 0 && row < len(e.lines) {
-    currentLine := e.lines[row][:col]
-    newLine := e.lines[row][col:]
-
-    e.lines = append(e.lines, "")
-    copy(e.lines[row + 1:] , e.lines[row:])
-    e.lines[row] = currentLine
-    e.lines[row + 1] = newLine
-  } else {
-    row = Max(0, len(e.lines) - 1)
-
-    currentLine := e.lines[row][:col]
-    newLine := e.lines[row][col:]
-
-    e.lines[row] = currentLine 
-    e.lines = append(e.lines, newLine)
+func (e *Editor) NewLineAt(row int, save bool) {
+  if save {
+    e.SaveHistory()
   }
 
+  e.text = e.text.InsertLines(row, "")
   e.fullText = ""
 }
 
-func (e *Editor) InsertYankedWordAfter(row, col int) {
-  if row >= 0 && row < len(e.lines) {
-    line := e.lines[row]
-
-    if col <= 0 {
-      e.lines[row] = ""
-      if len(e.lines[row]) != 0 {
-        e.lines[row] = " "
-      }
-      e.lines[row] += e.yankedBuffer + line
-    } else if col < len(line) - 1 {
-      e.lines[row] = line[:col + 1] + e.yankedBuffer + line[col + 1:]
-    } else {
-      e.lines[row] = line + e.yankedBuffer
-    }
-
-    e.fullText = ""
-  }
+func (e *Editor) InsertYankedAfter(row, col int) {
+  e.SaveHistory()
+  col = Min(col + 1, e.text.LineLen(row))
+  e.text = e.text.InsertAt(row, col, e.yankedLines)
+  e.fullText = ""
 }
 
 func (e *Editor) InsertCharBefore(ch rune, row, col int) {
-  if row >= 0 && row < len(e.lines) {
-    line := e.lines[row]
-
-    if col <= 0 {
-      e.lines[row] = string(ch) + line
-    } else if col < len(line) {
-      e.lines[row] = line[:col] + string(ch) + line[col:]
-    } else {
-      e.lines[row] = line + string(ch)
-    }
-
-    e.fullText = ""
-  }
+  e.text = e.text.InsertAt(row, col, WrapLines(string(ch)))
+  e.fullText = ""
 }
 
 func (e *Editor) DeleteCharBefore(row, col int) {
-  if row >= 0 && row < len(e.lines) {
-    line := e.lines[row]
-
-    lineLen := len(line)
-    if col > 0 && col < lineLen {
-      e.lines[row] = line[:col - 1] + line[col:]
-
-    } else if col >= lineLen && lineLen > 0 {
-      e.lines[row] = line[:lineLen - 1]
-
-    } else if col == 0 && row > 0 {
-      e.lines[row - 1] = e.lines[row - 1] + e.lines[row]
-      e.lines = append(e.lines[:row], e.lines[row + 1:]...)
+  if col == 0 {
+    if row > 0 {
+      lineLen := e.text.LineLen(row - 1)
+      e.text = e.text.DeleteRange(row - 1, lineLen, row, -1)
     }
-    e.fullText = ""
+  } else {
+    e.text = e.text.DeleteRange(row, col - 1, row, col - 1)
   }
+  e.fullText = ""
 }
 
 func (e *Editor) MoveCursorUp() {
   if e.cursorY > 0 {
     e.cursorY--
 
-    lineLen := len(e.lines[e.cursorY])
+    lineLen := e.text.LineLen(e.cursorY)
     if e.cursorX > lineLen - 1 {
       e.cursorX = Max(0, lineLen - 1)
     }
@@ -213,10 +155,10 @@ func (e *Editor) MoveCursorUp() {
 }
 
 func (e *Editor) MoveCursorDown() {
-  if e.cursorY < len(e.lines) - 1 {
+  if e.cursorY < e.text.Len() - 1 {
     e.cursorY++
 
-    lineLen := len(e.lines[e.cursorY])
+    lineLen := e.text.LineLen(e.cursorY)
     if e.cursorX > lineLen - 1 {
       e.cursorX = Max(0, lineLen - 1)
     }
@@ -224,7 +166,7 @@ func (e *Editor) MoveCursorDown() {
 }
 
 func (e *Editor) MoveCursorRight() {
-  if e.cursorX < len(e.lines[e.cursorY]) {
+  if e.cursorX < e.text.LineLen(e.cursorY) {
     e.cursorX++
   }
 }
@@ -235,32 +177,22 @@ func (e *Editor) MoveCursorLeft() {
   }
 }
 
-func (e *Editor) MoveCursorToLineStart() {
-  e.cursorX = 0
-}
-
-func (e *Editor) MoveCursorToLineEnd() {
-  if len(e.lines[e.cursorY]) > 0 {
-    e.cursorX = len(e.lines[e.cursorY]) - 1
-  }
-}
-
 func (e *Editor) MoveCursorToNextWordStart() {
-  i, j, found := FindNextWordStart(e.lines, e.cursorY, e.cursorX)
+  i, j, found := FindNextWordStart(e.text, e.cursorY, e.cursorX)
   if found {
     e.cursorY, e.cursorX = i, j
   }
 }
 
 func (e *Editor) MoveCursorToNextWordEnd() {
-  i, j, found := FindNextWordEnd(e.lines, e.cursorY, e.cursorX)
+  i, j, found := FindNextWordEnd(e.text, e.cursorY, e.cursorX)
   if found {
     e.cursorY, e.cursorX = i, j
   }
 }
 
 func (e *Editor) MoveCursorToPrevWordStart() {
-  i, j, found := FindPrevWordStart(e.lines, e.cursorY, e.cursorX)
+  i, j, found := FindPrevWordStart(e.text, e.cursorY, e.cursorX)
   if found {
     e.cursorY, e.cursorX = i, j
   }
@@ -290,7 +222,7 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
       case tcell.KeyCtrlR:
         state := e.history.Redo()
         if state != nil {
-          e.lines, e.cursorX, e.cursorY = state.Unpack()
+          e.text, e.cursorX, e.cursorY = state.Unpack()
           e.fullText = ""
         }
       }
@@ -320,6 +252,7 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
       e.tv.Highlight("visual")
       e.SetMode(VISUAL)
     case 'i':
+      // TODO Verify, maybe the text is not modified, but history is saved
       e.SaveHistory()
       e.SetMode(INSERT)
     case 'a':
@@ -330,34 +263,33 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
       e.SaveHistory()
       e.DeleteCharBefore(e.cursorY, e.cursorX + 1)
     case '0':
-      e.MoveCursorToLineStart()
+      e.cursorX = 0
     case '$':
-      e.MoveCursorToLineEnd()
+      if !e.text.IsLineEmpty(e.cursorY) {
+        e.cursorX = e.text.LineLen(e.cursorY) - 1
+      }
     case 'o':
-      e.SaveHistory()
-      end := Max(0, len(e.lines[e.cursorY]))
-      e.NewLineAfter(e.cursorY, end)
+      e.NewLineAt(e.cursorY + 1, true)
       e.MoveCursorDown()
       e.cursorX = 0
       e.SetMode(INSERT)
     case 'O':
-      e.SaveHistory()
-      e.NewLineAfter(e.cursorY, 0)
+      e.NewLineAt(e.cursorY, true)
       e.cursorX = 0
       e.SetMode(INSERT)
     case 'p':
-      e.SaveHistory()
       e.PasteYankedBuffer()
     case 'D':
-      if e.cursorX < len(e.lines[e.cursorY]) {
+      lineLen := e.text.LineLen(e.cursorY)
+      if e.cursorX < lineLen {
         e.SaveHistory()
-        e.yankedBuffer = e.lines[e.cursorY][e.cursorX:]
-        e.lines[e.cursorY] = e.lines[e.cursorY][:e.cursorX]
+        e.yankedLines = e.text.DeleteSubStrAt(e.cursorY, e.cursorX, lineLen)
         e.fullText = ""
       }
     case 'Y':
-      if e.cursorX < len(e.lines[e.cursorY]) {
-        e.yankedBuffer = e.lines[e.cursorY][e.cursorX:]
+      lineLen := e.text.LineLen(e.cursorY)
+      if e.cursorX < lineLen {
+        e.yankedLines = e.text.SubStrAt(e.cursorY, e.cursorX, lineLen)
       }
     case 'r', 'd', 'y':
       e.buffCommand = string(ch)
@@ -369,7 +301,7 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
 
       state := e.history.Undo()
       if state != nil {
-        e.lines, e.cursorX, e.cursorY = state.Unpack()
+        e.text, e.cursorX, e.cursorY = state.Unpack()
         e.fullText = ""
       }
     }
@@ -380,7 +312,7 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
       e.SetMode(NORMAL)
     case 'j':
       if e.selected.start == e.cursorY {
-        if e.selected.start + e.selected.size < len(e.lines) {
+        if e.selected.start + e.selected.size < e.text.Len() {
           e.selected.size += 1
         }
       } else if e.selected.start < e.cursorY {
@@ -413,16 +345,16 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
     case tcell.KeyLeft:
       e.MoveCursorLeft()
     case tcell.KeyBackspace2:
-      linesLen, rowLen := len(e.lines), 0
+      nLines, rowLen := e.text.Len(), 0
 
       if e.cursorY > 0 {
-        rowLen = len(e.lines[e.cursorY - 1])
+        rowLen = e.text.LineLen(e.cursorY - 1)
       }
 
       e.DeleteCharBefore(e.cursorY, e.cursorX)
 
       if e.cursorY > 0 {
-        if linesLen > len(e.lines) {
+        if nLines > e.text.Len() {
           e.MoveCursorUp()
           e.cursorX = rowLen
         } else {
@@ -432,7 +364,7 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
         e.MoveCursorLeft()
       }
     case tcell.KeyCR:
-      e.NewLineAfter(e.cursorY, e.cursorX)
+      e.NewLineAt(e.cursorY + 1, false)
       e.MoveCursorDown()
       e.cursorX = 0
     default:
@@ -449,100 +381,134 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
 
 func (e *Editor) YankCurrentWord(fromStart bool) {
   if fromStart {
-    yStart, xStart, ok1 := FindPrevWordStart(e.lines, e.cursorY, e.cursorX)
-    yEnd,   xEnd,   ok2 := FindNextWordEnd(e.lines, e.cursorY, e.cursorX)
+    yStart, xStart, ok1 := FindPrevWordStart(e.text, e.cursorY, e.cursorX)
+    yEnd,   xEnd,   ok2 := FindNextWordEnd(e.text, e.cursorY, e.cursorX)
 
     if !ok1 || !ok2 || yStart != yEnd {
       // TODO: put some error
       return
     }
 
-    if xEnd < len(e.lines) {
-      e.yankedBuffer = e.lines[yStart][xStart: xEnd + 1]
-    } else {
-      e.yankedBuffer = e.lines[yStart][xStart:]
-    }
+    xEnd = Min(xEnd + 1, e.text.LineLen(yEnd))
+    e.yankedLines = e.text.SubStrAt(yStart, xStart, xEnd)
+
   } else {
     yStart, xStart := e.cursorY, e.cursorX
-    yEnd,   xEnd, ok := FindNextWordEnd(e.lines, e.cursorY, e.cursorX)
+    yEnd,   xEnd, ok := FindNextWordEnd(e.text, e.cursorY, e.cursorX)
 
     if !ok || yStart != yEnd {
       // TODO: put some error
       return
     }
 
-    if xEnd < len(e.lines) {
-      e.yankedBuffer = e.lines[yStart][xStart: xEnd + 1]
-    } else {
-      e.yankedBuffer = e.lines[yStart][xStart:]
-    }
+    xEnd = Min(xEnd + 1, e.text.LineLen(yEnd))
+    e.yankedLines = e.text.SubStrAt(yStart, xStart, xEnd)
   }
 }
 
 func (e *Editor) DeleteCurrentWord(fromStart bool) {
+  e.SaveHistory()
+
   if fromStart {
-    yStart, xStart, ok1 := FindPrevWordStart(e.lines, e.cursorY, e.cursorX)
-    yEnd,   xEnd,   ok2 := FindNextWordEnd(e.lines, e.cursorY, e.cursorX)
+    yStart, xStart, ok1 := FindPrevWordStart(e.text, e.cursorY, e.cursorX)
+    yEnd,   xEnd,   ok2 := FindNextWordEnd(e.text, e.cursorY, e.cursorX)
 
     if !ok1 || !ok2 || yStart != yEnd {
       // TODO: put some error
       return
     }
 
-    if xEnd < len(e.lines[yStart]) {
-      e.yankedBuffer = e.lines[yStart][xStart: xEnd + 1]
-      e.lines[yStart] = e.lines[yStart][:xStart] + e.lines[yStart][xEnd + 1:]
-      e.cursorX = xStart
-    } else {
-      e.yankedBuffer = e.lines[yStart][xStart:]
-      e.lines[yStart] = e.lines[yStart][:xStart]
-      e.cursorX = xStart
-    }
+    xEnd = Min(xEnd + 1, e.text.LineLen(yEnd))
+    e.yankedLines = e.text.DeleteSubStrAt(yStart, xStart, xEnd)
+    e.cursorX = xStart
+
   } else {
     yStart, xStart := e.cursorY, e.cursorX
-    yEnd,   xEnd, ok := FindNextWordEnd(e.lines, e.cursorY, e.cursorX)
+    yEnd,   xEnd, ok := FindNextWordEnd(e.text, e.cursorY, e.cursorX)
 
     if !ok || yStart != yEnd {
       // TODO: put some error
       return
     }
 
-    if xEnd < len(e.lines[yStart]) {
-      e.yankedBuffer = e.lines[yStart][xStart: xEnd + 1]
-      e.lines[yStart] = e.lines[yStart][:xStart] + e.lines[yStart][xEnd + 1:]
-      e.cursorX = xStart
-    } else {
-      e.yankedBuffer = e.lines[yStart][xStart:]
-      e.lines[yStart] = e.lines[yStart][:xStart]
-      e.cursorX = xStart
-    }
+    xEnd = Min(xEnd + 1, e.text.LineLen(yEnd))
+    e.yankedLines = e.text.DeleteSubStrAt(yStart, xStart, xEnd)
+    e.cursorX = xStart
+  }
+
+  e.fullText = ""
+}
+
+func (e *Editor) DeleteOrYankInside(ch rune, del bool) {
+  beginCh, endCh := ch, ch
+  switch ch {
+  case '(', ')':
+    beginCh, endCh = '(', ')'
+  case '[', ']':
+    beginCh, endCh = '[', ']'
+  case '{', '}':
+    beginCh, endCh = '{', '}'
+  }
+
+  x, y := e.cursorX, e.cursorY
+  multiline := ch != '\'' && ch != '"'
+
+  yStart, xStart, found := FindCharBackwards(e.text, beginCh, y, x, multiline)
+
+  if !found {
+    return
+  }
+
+  yEnd,   xEnd,   found := FindCharForwards(e.text,  endCh,   y, x, multiline)
+
+  if !found {
+    return
+  }
+
+  xStart += 1
+  xEnd -= 1
+
+  if yStart == yEnd && xStart > xEnd {
+    return
+  }
+
+  e.yankedLines = e.text.CopyRange(yStart, xStart, yEnd, xEnd)
+
+  if del {
+    e.SaveHistory()
+    e.text = e.text.DeleteRange(yStart, xStart, yEnd, xEnd)
+    e.fullText = ""
+    e.cursorX = xStart
   }
 }
 
 func (e *Editor) YankCurrentLine() {
-  e.yankedBuffer = "\n" + e.lines[e.cursorY]
+  e.yankedLines = WrapLines("", e.text.Line(e.cursorY))
 }
 
 func (e *Editor) DelYankCurrentLine() {
   e.YankCurrentLine()
-  if len(e.lines) > 1 {
-    e.lines = append(e.lines[:e.cursorY], e.lines[e.cursorY + 1:]...)
+  e.SaveHistory()
+
+  if e.text.Len() > 1 {
+    e.text = e.text.DeleteLines(e.cursorY, e.cursorY)
   } else {
-    e.lines = []string{""}
+    e.text = Text([]string{""})
   }
 
-  e.cursorY = Min(e.cursorY, len(e.lines) - 1)
+  e.cursorY = Min(e.cursorY, e.text.Len()- 1)
+  e.fullText = ""
 }
 
 func (e *Editor) PasteYankedBuffer() {
-  if len(e.yankedBuffer) > 0 {
-    if e.yankedBuffer[0] == '\n' {
-      end := Max(0, len(e.lines[e.cursorY]))
-      e.NewLineAfter(e.cursorY, end)
-      e.lines[e.cursorY + 1] = e.yankedBuffer[1:]
+  if e.yankedLines.Len() > 0 {
+    if e.yankedLines.LineLen(0) == 0 {
+      end := e.text.LineLen(e.cursorY)
+      e.InsertYankedAfter(e.cursorY, end)
+      e.cursorY += 1
     } else {
-      e.InsertYankedWordAfter(e.cursorY, e.cursorX)
-      e.cursorX += len(e.yankedBuffer)
+      e.InsertYankedAfter(e.cursorY, e.cursorX)
+      e.cursorX += e.yankedLines.LineLen(0)
     }
   }
 }
@@ -551,8 +517,7 @@ func (e *Editor) HandleBufferedCommand(ch rune) {
   switch e.buffCommand[0] {
   case 'r':
     e.SaveHistory()
-    e.DeleteCharBefore(e.cursorY, e.cursorX + 1)
-    e.InsertCharBefore(ch, e.cursorY, e.cursorX)
+    e.text.ReplaceChar(e.cursorY, e.cursorX, ch)
     e.fullText = ""
   case 'y':
     switch ch {
@@ -566,11 +531,16 @@ func (e *Editor) HandleBufferedCommand(ch rune) {
       fromStart := len(e.buffCommand) > 1
       e.YankCurrentWord(fromStart)
     case '$':
-      if e.cursorX < len(e.lines[e.cursorY]) {
-        e.yankedBuffer = e.lines[e.cursorY][e.cursorX:]
+      lineLen := e.text.LineLen(e.cursorY)
+      if e.cursorX < lineLen {
+        e.yankedLines = e.text.SubStrAt(e.cursorY, e.cursorX, lineLen)
       }
     case 'y':
       e.YankCurrentLine()
+    case '\'', '"', '(', ')', '[', ']', '{', '}':
+      if len(e.buffCommand) > 1 {
+        e.DeleteOrYankInside(ch, false)
+      }
     }
   case 'd':
     switch ch {
@@ -582,21 +552,21 @@ func (e *Editor) HandleBufferedCommand(ch rune) {
       }
       return
     case 'w':
-      e.SaveHistory()
       fromStart := len(e.buffCommand) > 1
       e.DeleteCurrentWord(fromStart)
-      e.fullText = ""
     case '$':
-      if e.cursorX < len(e.lines[e.cursorY]) {
+      lineLen := e.text.LineLen(e.cursorY)
+      if e.cursorX < lineLen {
         e.SaveHistory()
-        e.yankedBuffer = e.lines[e.cursorY][e.cursorX:]
-        e.lines[e.cursorY] = e.lines[e.cursorY][:e.cursorX]
+        e.yankedLines = e.text.DeleteSubStrAt(e.cursorY, e.cursorX, lineLen)
         e.fullText = ""
       }
     case 'd':
-      e.SaveHistory()
       e.DelYankCurrentLine()
-      e.fullText = ""
+    case '\'', '"', '(', ')', '[', ']', '{', '}':
+      if len(e.buffCommand) > 1 {
+        e.DeleteOrYankInside(ch, true)
+      }
     }
   }
 
@@ -616,15 +586,10 @@ func (e *Editor) SetExecuteCb(cb func(string)) {
   e.onExecute = cb
 }
 
-func (e *Editor) GetCursorLine() string {
-  value := e.lines[e.cursorY]
-  return value
-}
-
 func (e *Editor) GetFullText() string {
   var builder strings.Builder
 
-  for _, line := range e.lines {
+  for _, line := range e.text {
     builder.WriteString(line)
     builder.WriteString(" \n") // Adding space to be able to place cursor at the end of a line
   }
@@ -693,7 +658,7 @@ func (e *Editor) GetParsedText() string {
 
   pos := 0
   for i := 0; i < e.cursorY; i++ {
-    pos += len(e.lines[i]) + 2
+    pos += e.text.LineLen(i) + 2
   }
   pos += e.cursorX
 
@@ -740,8 +705,8 @@ func (e *Editor) GetParsedText() string {
 func (e *Editor) GetSelectedText() string {
   if e.mode == VISUAL {
     text := ""
-    for i := e.selected.start; i < e.selected.start + e.selected.size; i++{
-      text += e.lines[i] + " \n"
+    for i := e.selected.start; i < e.selected.start + e.selected.size; i++ {
+      text += e.text.Line(i) + " \n"
     }
     return text
   }

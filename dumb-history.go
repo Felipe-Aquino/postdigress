@@ -1,15 +1,15 @@
 package main
 
 type EditorState struct {
-  lines []string
+  lines Text
   cursorX, cursorY int
 }
 
-func NewEditorState(lines []string, cX, cY int) *EditorState {
+func NewEditorState(lines Text, cX, cY int) *EditorState {
   return &EditorState{lines, cX, cY}
 }
 
-func (es *EditorState) Unpack() ([]string, int, int) {
+func (es *EditorState) Unpack() (Text, int, int) {
   return es.lines, es.cursorX, es.cursorY
 }
 
