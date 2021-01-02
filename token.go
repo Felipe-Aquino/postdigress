@@ -346,6 +346,15 @@ func (tn *Tokenizer) NextToken() Token {
     tn.Lock()
     tn.ReadNumber()
     token.ttype = NUMBER
+
+    if !tn.IsEnd() {
+      c := rune(tn.input[tn.pos])
+      if IsAlpha(c) {
+        tn.ReadIdent()
+        token.ttype = IDENT
+      }
+    }
+
     token.size = tn.LockPosDiff()
     tn.Commit()
 
