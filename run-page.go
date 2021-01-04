@@ -23,10 +23,12 @@ type RunPage struct {
 
   focusedType ComponentType
 
-  focused   *tview.TextView
-	modeName  *tview.TextView
-	statusBar *tview.TextView
-  layout    *tview.Grid
+  focused  *tview.TextView
+	modeName *tview.TextView
+  layout   *tview.Grid
+
+	status  *Status
+  command *Command
 }
 
 func NewRunPage(c *Context) *RunPage {
@@ -83,7 +85,7 @@ func NewRunPage(c *Context) *RunPage {
       return
     }
 
-    c.loading.SetTextView(rp.statusBar)
+    c.loading.SetTextView(rp.status.tv)
     go c.loading.Init(c.app)
 
     go func () {
@@ -95,7 +97,7 @@ func NewRunPage(c *Context) *RunPage {
         queryResult = GetQueryResult(c.db, query)
       } else {
         c.Enqueue(func () {
-          rp.statusBar.SetText("Nothing to be done.")
+          rp.status.SetText("Nothing to be done.")
         })
         return
       }
@@ -106,17 +108,17 @@ func NewRunPage(c *Context) *RunPage {
 
       if queryResult.err != nil {
         c.Enqueue(func () {
-          rp.statusBar.SetText(queryResult.err.Error())
+          rp.status.SetText(queryResult.err.Error())
           TableSetData(rp.table, []string{}, [][]string{}, false)
         })
       } else if len(queryResult.columns) == 0 {
         c.Enqueue(func () {
-          rp.statusBar.SetText("Finished in " + duration.String())
+          rp.status.SetText("Finished in " + duration.String())
           TableSetData(rp.table, []string{}, [][]string{}, false)
         })
       } else {
         c.Enqueue(func () {
-          rp.statusBar.SetText("Finished in " + duration.String())
+          rp.status.SetText("Finished in " + duration.String())
 
           TableSetData(rp.table, queryResult.columns, queryResult.values, true)
         })
@@ -124,11 +126,40 @@ func NewRunPage(c *Context) *RunPage {
     }()
   })
 
-	rp.statusBar = tview.NewTextView().
-		SetDynamicColors(true).
-		SetWrap(false)
+  rp.command = NewCommand()
+  rp.command.Register("yank", rp.Yank)
+  rp.command.Register("yank-line", rp.YankLine)
+  rp.command.Register("import", rp.Import)
+  rp.command.Register("export", rp.Export)
+  rp.command.Register("select-for", rp.YankSelectFor)
 
-  rp.statusBar.SetText(" Nothing new.")
+  rp.status = NewStatus()
+  rp.status.ChangeStartString(":")
+  rp.status.SetMode(Show)
+
+  rp.status.SetText("Nothing new.")
+
+  rp.status.SetEnterCb(func(s string) {
+    returned, err := rp.command.Run(s)
+
+    rp.status.SetMode(Show)
+
+    if err != nil {
+      rp.status.SetText(err.Error())
+    } else {
+      rp.status.SetText(returned)
+    }
+    // Change Focus
+
+    rp.SetCompType(EDITOR)
+    c.SetFocus(rp.editor.tv)
+  })
+
+  rp.status.SetCancelCb(func() {
+    // Change Focus
+    rp.SetCompType(EDITOR)
+    c.SetFocus(rp.editor.tv)
+  })
 
 	rp.layout = tview.NewGrid().
 		SetBorders(true).
@@ -139,7 +170,7 @@ func NewRunPage(c *Context) *RunPage {
 		AddItem(rp.table,     2, 0, 1, 3, 0, 0, false).
 		AddItem(rp.focused,   3, 0, 1, 1, 0, 0, false).
 		AddItem(rp.modeName,  3, 1, 1, 1, 0, 0, false).
-		AddItem(rp.statusBar, 3, 2, 1, 1, 0, 0, false)
+		AddItem(rp.status.tv, 3, 2, 1, 1, 0, 0, false)
 
   rp.layout.
     SetInputCapture(func (event *tcell.EventKey) *tcell.EventKey {
@@ -147,6 +178,11 @@ func NewRunPage(c *Context) *RunPage {
         if event.Rune() == 'q' {
           rp.SetCompType(MENU)
           c.FocusMenu()
+        } else if event.Rune() == ':' {
+          rp.status.SetMode(Prompt)
+          rp.SetCompType(COMMAND)
+          c.SetFocus(rp.status.tv)
+          return nil
         } else if event.Key() == tcell.KeyCtrlT {
           rp.SetCompType(TABLE)
           c.SetFocus(rp.table)
@@ -182,6 +218,9 @@ func (rp *RunPage) SetCompType(t ComponentType) {
   case TABLE:
     rp.editor.tv.Highlight("")
     rp.focused.SetText(" TABLE ")
+  case COMMAND:
+    rp.editor.tv.Highlight("")
+    rp.focused.SetText(" PROMPT ")
   default:
     rp.editor.tv.Highlight("")
     rp.focused.SetText(" ??? ")
@@ -212,16 +251,57 @@ func (rp *RunPage) SetModeName() {
     case VISUAL:
       rp.modeName.SetText(" VISUAL ")
     }
-  } else {
+  } else if rp.focusedType == MENU {
     rp.modeName.SetText(" MENU ")
+  } else {
+    rp.modeName.SetText("  ")
   }
 }
 
 func (rp *RunPage) SetStatus(msg string) {
-  rp.statusBar.SetText(msg)
+  rp.status.SetText(msg)
 }
 
 func (rp *RunPage) Layout() tview.Primitive {
   return rp.layout
 }
 
+func (rp *RunPage) Yank(s string) string {
+  rp.editor.SetYanked(WrapLines(s))
+  return s
+}
+
+func (rp *RunPage) YankLine(s string) string {
+  rp.editor.SetYanked(WrapLines("", s))
+  return s
+}
+
+func (rp *RunPage) Import(path string) string {
+  file, err := ReadFile(path)
+
+  if err != nil {
+    return err.Error()
+  }
+
+  rp.editor.SetText(TextFromString(string(file)))
+
+  return path + " imported."
+}
+
+func (rp *RunPage) Export(path string) string {
+  data := rp.editor.text.String()
+  err := WriteFile(path, data)
+
+  if err != nil {
+    return err.Error()
+  }
+
+  return "Exported to " + path
+}
+
+func (rp *RunPage) YankSelectFor(table string) string {
+  text := WrapLines("", "SELECT * FROM " + table + ";")
+  rp.editor.SetYanked(text)
+
+  return "Select text yanked."
+}

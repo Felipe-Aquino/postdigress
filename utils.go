@@ -5,6 +5,11 @@ import (
   "github.com/gdamore/tcell"
   "fmt"
   "hash/fnv"
+  "reflect"
+  "strconv"
+  "errors"
+  "os/user"
+	"io/ioutil"
 )
 
 func IsAlpha(r rune) bool {
@@ -82,6 +87,145 @@ func SSMap(vs [][]string, f func([]string) string) []string {
     vsm[i] = f(v)
   }
   return vsm
+}
+
+func SFilter(vs []string, f func(string) bool) []string {
+  filtered := []string{} 
+  for _, v := range vs {
+    if f(v) {
+      filtered = append(filtered, v)
+    }
+  }
+  return filtered
+}
+
+func ExpandHomeDir(path string) (string, error) {
+  if path[0] == '~' {
+    usr, err := user.Current()
+
+    if err != nil {
+      return "", errors.New("Invalid path.")
+    }
+
+    dir := usr.HomeDir
+    path = dir + path[1:]
+  }
+  return path, nil
+}
+
+func ReadFile(path string) (string, error) {
+  path, err := ExpandHomeDir(path)
+
+  if err != nil {
+    return "", err
+  }
+
+  file, err := ioutil.ReadFile(path)
+
+  if err != nil {
+    return "", errors.New("Read error")
+  }
+
+  return string(file), nil
+}
+
+func WriteFile(path string, data string) error {
+  path, err := ExpandHomeDir(path)
+
+  if err != nil {
+    return err
+  }
+
+	err = ioutil.WriteFile(path, []byte(data), 0644)
+
+  if err != nil {
+    return errors.New("Read error")
+  }
+
+  return nil
+}
+
+func CallFunction(f interface{}, values []string) (string, error) {
+	tf := reflect.TypeOf(f)
+	if tf.Kind() != reflect.Func {
+		return "", errors.New("expects a function")
+	}
+
+	vf := reflect.ValueOf(f)
+
+  numParams := tf.NumIn()
+
+  if len(values) < numParams {
+		return "", errors.New("Mismatch between param numbers.")
+  }
+
+  params := []reflect.Value{}
+
+  for i := 0; i < numParams; i++ {
+    param := reflect.ValueOf("")
+
+    paramType := tf.In(i)
+
+    switch paramType.Kind() {
+    case reflect.String:
+      param = reflect.ValueOf(values[i])
+    case reflect.Int:
+      n, err := strconv.ParseInt(values[i], 10, 32)
+      if err == nil {
+        param = reflect.ValueOf(int(n))
+      } else {
+        param = reflect.ValueOf(int(0))
+      }
+    case reflect.Int32:
+      n, err := strconv.ParseInt(values[i], 10, 32)
+      if err == nil {
+        param = reflect.ValueOf(int32(n))
+      } else {
+        param = reflect.ValueOf(int32(0))
+      }
+    case reflect.Int64:
+      n, err := strconv.ParseInt(values[i], 10, 64)
+      if err == nil {
+        param = reflect.ValueOf(n)
+      } else {
+        param = reflect.ValueOf(int64(0))
+      }
+    case reflect.Float32:
+      n, err := strconv.ParseFloat(values[i], 32)
+      if err == nil {
+        param = reflect.ValueOf(n)
+      } else {
+        param = reflect.ValueOf(float32(0.0))
+      }
+    case reflect.Float64:
+      n, err := strconv.ParseFloat(values[i], 64)
+      if err == nil {
+        param = reflect.ValueOf(n)
+      } else {
+        param = reflect.ValueOf(float64(0.0))
+      }
+    case reflect.Bool:
+      if values[i] == "true" {
+        param = reflect.ValueOf(true)
+      } else {
+        param = reflect.ValueOf(false)
+      }
+    default:
+		  return "", errors.New("Unexpected param type")
+    }
+
+    params = append(params, param)
+  }
+
+  out := vf.Call(params)
+
+  returnValue := ""
+
+  if len(out) > 0 {
+    returnValue = fmt.Sprint(out[0])
+  }
+
+  return returnValue, nil
 }
 
 ///* tview *///

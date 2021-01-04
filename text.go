@@ -1,5 +1,7 @@
 package main
 
+import "strings"
+
 type Text []string
 
 func WrapLines(lines ...string) Text {
@@ -30,6 +32,12 @@ func (t Text) LastLine() string {
 
 func (t Text) Line(at int) string {
   return t[at]
+}
+
+func (t Text) SetLine(at int, value string) {
+  if at < t.Len() {
+    t[at] = value
+  }
 }
 
 func (t Text) IsLineEmpty(l int) bool {
@@ -164,4 +172,18 @@ func (t Text) CopyRange(lineStart, colStart, lineEnd, colEnd int) Text {
   }
 
   return Text([]string{})
+}
+
+func (t Text) String() string {
+  var builder strings.Builder
+
+  for _, line := range t {
+    builder.WriteString(line)
+    builder.WriteString("\n")
+  }
+  return builder.String()
+}
+
+func TextFromString(s string) Text {
+  return Text(strings.Split(s, "\n"))
 }

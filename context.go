@@ -15,6 +15,7 @@ const (
   MENU ComponentType = iota
   EDITOR
   TABLE
+  COMMAND
 
   DATABASE
   COLUMNS

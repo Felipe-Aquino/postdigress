@@ -1,16 +1,16 @@
 package main
 
 type EditorState struct {
-  lines Text
+  text Text
   cursorX, cursorY int
 }
 
-func NewEditorState(lines Text, cX, cY int) *EditorState {
-  return &EditorState{lines, cX, cY}
+func NewEditorState(text Text, cX, cY int) *EditorState {
+  return &EditorState{text, cX, cY}
 }
 
 func (es *EditorState) Unpack() (Text, int, int) {
-  return es.lines, es.cursorX, es.cursorY
+  return es.text.Clone(), es.cursorX, es.cursorY
 }
 
 type DumbHistory struct {
@@ -40,6 +40,20 @@ func (dh *DumbHistory) Add(b *EditorState) {
     for i := dh.current; i < len(dh.states); i++ {
       dh.states[i] = nil
     }
+  }
+}
+
+func (dh *DumbHistory) Push(b *EditorState) {
+  dh.RedoToLast()
+  dh.Add(b)
+}
+
+func (dh *DumbHistory) RedoToLast() {
+  for dh.current < len(dh.states) - 1 {
+    if dh.states[dh.current] == nil {
+      break
+    }
+    dh.current += 1
   }
 }
 

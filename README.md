@@ -54,6 +54,23 @@ make the transition to that page.
 
 * Quit: Quits the application
 
+### Comands
+Is possible to call commands by pressing _:_ while using the editor in normal mode.
+The commands available are:
+
+- import <path>: imports a file
+- export <path>: exports a file
+- time: give the current time in some timezone
+- utc <time_str>: receives a time in string format and returns a time in utc
+- yank <str>: copy a string to the yank buffer of the editor
+- add <num> <num>: add 2 numbers
+- sub <num> <num>: subtract 2 numbers
+- select-for <str>: receives a table name and generate a select statement for it
+
+You can compose commands by using a *pipe* syntax.
+So the following expression copies the current time, in utc, to the yank buffer: 
+_time | utc | yank_.
+
 ### Tricks
 In the connection page you can use Tab, Ctrl-J, Ctrl-K, Ctrl-L, Ctrl-H to move between the form fields
 

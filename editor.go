@@ -482,6 +482,10 @@ func (e *Editor) DeleteOrYankInside(ch rune, del bool) {
   }
 }
 
+func (e *Editor) SetYanked(txt Text) {
+  e.yankedLines = txt
+}
+
 func (e *Editor) YankCurrentLine() {
   e.yankedLines = WrapLines("", e.text.Line(e.cursorY))
 }
@@ -584,6 +588,20 @@ func (e *Editor) SetModeChangeCb(cb func(Mode)) {
 
 func (e *Editor) SetExecuteCb(cb func(string)) {
   e.onExecute = cb
+}
+
+func (e *Editor) SetText(text Text) {
+  e.SaveHistory()
+
+  e.cursorX, e.cursorY = 0, 0
+
+  if len(text) == 0 {
+    text = WrapLines("")
+  }
+
+  e.text = text
+  e.fullText = ""
+  e.UpdateText()
 }
 
 func (e *Editor) GetFullText() string {
