@@ -60,6 +60,7 @@ The commands available are:
 
 - import <path>: imports a file
 - export <path>: exports a file
+- enable <item> <bool>: enable/disable a item of configuration. Only numbers is available for now.
 - time: give the current time in some timezone
 - utc <time_str>: receives a time in string format and returns a time in utc
 - yank <str>: copy a string to the yank buffer of the editor
@@ -67,7 +68,7 @@ The commands available are:
 - sub <num> <num>: subtract 2 numbers
 - select-for <str>: receives a table name and generate a select statement for it
 
-You can compose commands by using a *pipe* syntax.
+You can compose commands by using a ***pipe*** syntax.
 So the following expression copies the current time, in utc, to the yank buffer: 
 _time | utc | yank_.
 

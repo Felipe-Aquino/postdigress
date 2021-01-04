@@ -47,6 +47,9 @@ type Editor struct {
   text Text
   mode Mode
 
+  useLineNumbers bool // enable line numbers
+  numbersShift int // number of charaters shifted to give space to line numbers
+
   cursorX, cursorY int
 
   tokenizer *Tokenizer
@@ -71,6 +74,20 @@ func NewEditor() *Editor {
       "",
       "insert into test (name, value, created_at) values",
       "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
+      "('fifth', 30, '2020-10-10 22:22:22Z')",
       "",
       "/* multiline comment */",
     }),
@@ -91,7 +108,6 @@ func NewEditor() *Editor {
 		SetRegions(true).
 		SetWrap(true).
     SetInputCapture(func (event *tcell.EventKey) *tcell.EventKey {
-      //fmt.Printf("name: %s\n", event.Name())
       if event.Key() == tcell.KeyRune {
         e.HandleKeyboard(event.Rune(), 0)
       } else {
@@ -100,9 +116,13 @@ func NewEditor() *Editor {
       return nil
     })
 
-  //e.tv.Highlight("cursor")
-
   return e
+}
+
+func (e *Editor) EnableLineNumber(enable bool) {
+  e.useLineNumbers = enable
+  e.fullText = ""
+  e.UpdateText()
 }
 
 func (e *Editor) SaveHistory() {
@@ -604,10 +624,33 @@ func (e *Editor) SetText(text Text) {
   e.UpdateText()
 }
 
+func NumDig(n int) int {
+  count := 0
+
+  for n != 0 {
+    n = n / 10
+    count += 1
+  }
+  return count
+}
+
 func (e *Editor) GetFullText() string {
   var builder strings.Builder
 
-  for _, line := range e.text {
+  strPad := ""
+
+  if e.useLineNumbers {
+    e.numbersShift = Max(2, NumDig(e.text.Len())) + 2
+    strPad = fmt.Sprintf("%%%dv ", e.numbersShift - 1)
+  } else {
+    e.numbersShift = 0
+  }
+
+  for i, line := range e.text {
+    if e.useLineNumbers {
+      builder.WriteString(fmt.Sprintf(strPad, i + 1))
+    }
+
     builder.WriteString(line)
     builder.WriteString(" \n") // Adding space to be able to place cursor at the end of a line
   }
@@ -676,9 +719,9 @@ func (e *Editor) GetParsedText() string {
 
   pos := 0
   for i := 0; i < e.cursorY; i++ {
-    pos += e.text.LineLen(i) + 2
+    pos += e.text.LineLen(i) + e.numbersShift + 2
   }
-  pos += e.cursorX
+  pos += e.cursorX + e.numbersShift
 
   text := e.fullText
 
@@ -768,5 +811,5 @@ func (e *Editor) UpdateText() {
   }
 
   e.tv.SetText(text)
-  e.tv.ScrollTo(e.cursorX, e.cursorY)
+  e.tv.ScrollToHighlight()
 }

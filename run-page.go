@@ -132,6 +132,7 @@ func NewRunPage(c *Context) *RunPage {
   rp.command.Register("import", rp.Import)
   rp.command.Register("export", rp.Export)
   rp.command.Register("select-for", rp.YankSelectFor)
+  rp.command.Register("enable", rp.Enable)
 
   rp.status = NewStatus()
   rp.status.ChangeStartString(":")
@@ -163,7 +164,7 @@ func NewRunPage(c *Context) *RunPage {
 
 	rp.layout = tview.NewGrid().
 		SetBorders(true).
-		SetRows(1, -1, -2, 1).
+		SetRows(1, -2, -3, 1).
 		SetColumns(8, 8, -1).
 		AddItem(c.menuBar,    0, 0, 1, 3, 0, 0, true).
 		AddItem(rp.editor.tv, 1, 0, 1, 3, 0, 0, false).
@@ -264,6 +265,21 @@ func (rp *RunPage) SetStatus(msg string) {
 
 func (rp *RunPage) Layout() tview.Primitive {
   return rp.layout
+}
+
+func (rp *RunPage) Enable(item string, enable bool) string {
+  switch item {
+  case "numbers":
+    rp.editor.EnableLineNumber(enable)
+  default:
+    return item + " is undefined."
+  }
+
+  if enable {
+    return item + " enabled."
+  }
+
+  return item + " disabled."
 }
 
 func (rp *RunPage) Yank(s string) string {
