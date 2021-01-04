@@ -58,15 +58,15 @@ make the transition to that page.
 Is possible to call commands by pressing _:_ while using the editor in normal mode.
 The commands available are:
 
-- import <path>: imports a file
-- export <path>: exports a file
-- enable <item> <bool>: enable/disable a item of configuration. Only numbers is available for now.
+- import &lt;str>: imports a file
+- export &lt;str>: exports a file
+- enable &lt;item> &lt;bool>: enable/disable a item of configuration. Only numbers is available for now.
 - time: give the current time in some timezone
-- utc <time_str>: receives a time in string format and returns a time in utc
-- yank <str>: copy a string to the yank buffer of the editor
-- add <num> <num>: add 2 numbers
-- sub <num> <num>: subtract 2 numbers
-- select-for <str>: receives a table name and generate a select statement for it
+- utc &lt;timestr>: receives a time in string format and returns a time in utc
+- yank &lt;str>: copy a string to the yank buffer of the editor
+- add &lt;num> &lt;num>: add 2 numbers
+- sub &lt;num> &lt;num>: subtract 2 numbers
+- select-for &lt;str>: receives a table name and generate a select statement for it
 
 You can compose commands by using a ***pipe*** syntax.
 So the following expression copies the current time, in utc, to the yank buffer: 
