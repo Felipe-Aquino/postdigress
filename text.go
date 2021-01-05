@@ -2,9 +2,28 @@ package main
 
 import "strings"
 
-type Text []string
+type Line []rune
+
+func (l Line) String() string {
+  return string(l)
+}
+
+func LinesFromStrs(strs []string) []Line {
+  lines := []Line{}
+
+  for _, str := range strs {
+    lines = append(lines, Line(str))
+  }
+  return lines
+}
+
+type Text []Line
 
 func WrapLines(lines ...string) Text {
+  return Text(LinesFromStrs(lines))
+}
+
+func WrapLinesR(lines ...Line) Text {
   return Text(lines)
 }
 
@@ -13,38 +32,31 @@ func (t Text) Len() int {
 }
 
 func (t Text) Clone() Text {
-  return Text(append([]string{}, t...))
+  return Text(append([]Line{}, t...))
 }
 
-func (t Text) FirstLine() string {
+func (t Text) FirstLine() Line {
   if len(t) > 0 {
     return t[0]
   }
-  return ""
+  return Line{}
 }
 
-func (t Text) LastLine() string {
+func (t Text) LastLine() Line {
   if len(t) > 0 {
     return t[len(t) - 1]
   }
-  return ""
+  return Line{}
 }
 
-func (t Text) Line(at int) string {
+func (t Text) Line(at int) Line {
   return t[at]
 }
 
-func (t Text) SetLine(at int, value string) {
+func (t Text) SetLine(at int, value Line) {
   if at < t.Len() {
     t[at] = value
   }
-}
-
-func (t Text) IsLineEmpty(l int) bool {
-  if l >= 0 && l < len(t) {
-    return len(t[l]) == 0
-  }
-  return true
 }
 
 func (t Text) LineLen(l int) int {
@@ -55,12 +67,12 @@ func (t Text) LineLen(l int) int {
 }
 
 func (t Text) ReplaceChar(i, j int, ch rune) {
-  t[i] = t[i][:j] + string(ch) + t[i][j + 1:]
+  t[i][j] = ch
 }
 
 func (t Text) SubStrAt(line, colStart, colEnd int) Text {
   if line < len(t) && colStart <= colEnd && colEnd <= len(t[line]) {
-    return WrapLines( t[line][colStart: colEnd] )
+    return WrapLinesR(t[line][colStart: colEnd])
   }
   return WrapLines("")
 }
@@ -68,8 +80,8 @@ func (t Text) SubStrAt(line, colStart, colEnd int) Text {
 func (t Text) DeleteSubStrAt(l, colStart, colEnd int) Text {
   if l < len(t) && colStart <= colEnd && colEnd <= len(t[l]) {
     substr := t[l][colStart: colEnd]
-    t[l] = t[l][:colStart] + t[l][colEnd:]
-    return WrapLines(substr)
+    t[l] = append(t[l][:colStart], t[l][colEnd:]...)
+    return WrapLinesR(substr)
   }
   return WrapLines("")
 }
@@ -79,7 +91,7 @@ func (t Text) SubText(start, size int) Text {
     end := Min(len(t), start + size)
     return Text(t[start: end])
   }
-  return Text([]string{})
+  return Text([]Line{})
 }
 
 func (t Text) InsertText(start int, lines Text) Text {
@@ -91,10 +103,11 @@ func (t Text) InsertText(start int, lines Text) Text {
 
 // From a start line, inserts line by line into the orignal text
 func (t Text) InsertLines(start int, lines ...string) Text {
+  linesR := WrapLines(lines...)
   if start <= len(t) && len(t) > 0 {
-    return Text(append(t[:start], append(lines, t[start:]...)...))
+    return Text(append(t[:start], append(linesR, t[start:]...)...))
   }
-  return Text(append(t, lines...))
+  return Text(append(t, linesR...))
 }
 
 func (t Text) InsertAt(l, c int, value Text) Text {
@@ -102,7 +115,7 @@ func (t Text) InsertAt(l, c int, value Text) Text {
     return t
   }
 
-  if len(t) == 0{
+  if len(t) == 0 {
     return value
   }
 
@@ -112,23 +125,23 @@ func (t Text) InsertAt(l, c int, value Text) Text {
     line := t[l]
 
     if value.Len() == 1 {
-      result[l] = line[:c] + value[0] + line[c:]
+      result[l] = append(line[:c], append(value[0], line[c:]...)...)
 
     } else if value.Len() > 1 {
-      lineStart := line[:c] + value.FirstLine()
-      lineEnd   := value.LastLine() + line[c:]
+      lineStart := append(line[:c], value.FirstLine()...)
+      lineEnd   := append(value.LastLine(), line[c:]...)
 
       size := value.Len() - 1
       result = t.InsertText(l, value.SubText(0, size)) 
 
-      result[l]            = lineStart
+      result[l]        = lineStart
       result[l + size] = lineEnd
     }
 
     return result
   }
 
-  return Text([]string{})
+  return Text([]Line{})
 }
 
 // Delete text lines from a start line to an end line
@@ -145,7 +158,7 @@ func (t Text) DeleteRange(lineStart, colStart, lineEnd, colEnd int) Text {
   }
 
   if lineStart < len(t) && colStart <= t.LineLen(lineStart) && colEnd < t.LineLen(lineEnd) {
-    t[lineStart] = t[lineStart][:colStart] + t[lineEnd][colEnd + 1:]
+    t[lineStart] = append(t[lineStart][:colStart], t[lineEnd][colEnd + 1:]...)
 
     return t.DeleteLines(lineStart + 1, lineEnd)
   }
@@ -155,35 +168,35 @@ func (t Text) DeleteRange(lineStart, colStart, lineEnd, colEnd int) Text {
 
 func (t Text) CopyRange(lineStart, colStart, lineEnd, colEnd int) Text {
   if len(t) == 0 || lineStart > lineEnd {
-    return Text([]string{})
+    return Text([]Line{})
   }
 
   if colStart <= t.LineLen(lineStart) && colEnd < t.LineLen(lineEnd) {
     if lineStart < len(t) {
       if lineStart == lineEnd {
-        return WrapLines(t[lineStart][colStart: colEnd + 1])
+        return WrapLinesR(t[lineStart][colStart: colEnd + 1])
       }
 
-      result := []string{t[lineStart][colStart:]}
+      result := []Line{t[lineStart][colStart:]}
       result = append(result, t[lineStart + 1: lineEnd]...)
       result = append(result, t[lineEnd][:colEnd + 1])
       return result
     }
   }
 
-  return Text([]string{})
+  return Text([]Line{})
 }
 
 func (t Text) String() string {
   var builder strings.Builder
 
   for _, line := range t {
-    builder.WriteString(line)
+    builder.WriteString(line.String())
     builder.WriteString("\n")
   }
   return builder.String()
 }
 
 func TextFromString(s string) Text {
-  return Text(strings.Split(s, "\n"))
+  return WrapLines(strings.Split(s, "\n")...)
 }

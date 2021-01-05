@@ -70,17 +70,6 @@ func StrClip(s string, max int) string {
   return s
 }
 
-func StrClamp(s string, min, max int) string {
-  size := len(s)
-  if size > min {
-    if size > max {
-      return s[min:max]
-    }
-    return s[min:]
-  }
-  return ""
-}
-
 func SSMap(vs [][]string, f func([]string) string) []string {
   vsm := make([]string, len(vs))
   for i, v := range vs {
@@ -226,6 +215,12 @@ func CallFunction(f interface{}, values []string) (string, error) {
   }
 
   return returnValue, nil
+}
+
+
+func InsertCursorTag(s []rune, at int) []rune {
+  result := fmt.Sprintf(`%s["cursor"]%s[""]%s`, string(s[:at]), string(s[at]), string(s[at + 1:]))
+  return []rune(result)
 }
 
 ///* tview *///

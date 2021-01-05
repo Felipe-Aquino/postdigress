@@ -118,7 +118,8 @@ func (t Token) Is(ttype TokenType) bool {
 
 func (t Token) Print(text *string) {
   fmt.Printf(
-    "{ type: %s, value: %s, line: %d, col: %d }\n",
+    "{ %d - type: %s, value: %s, line: %d, col: %d }\n",
+    t.start,
     t.ttype.String(),
     t.Value(text),
     t.line,
@@ -128,7 +129,6 @@ func (t Token) Print(text *string) {
 type Lock struct {
   pos, line, col int 
   active bool
-
 };
 
 func NewLock(pos, line, col int, active bool) Lock {
@@ -139,7 +139,7 @@ type Tokenizer struct {
   pos int
   line, col int
 
-  input string
+  input []rune
 
   current Token
 
@@ -147,10 +147,10 @@ type Tokenizer struct {
 }
 
 func NewTokenizer() *Tokenizer {
-  return &Tokenizer{pos: 0, line: 1, col: 1, input: "", lock: Lock{} }
+  return &Tokenizer{pos: 0, line: 1, col: 1, input: []rune{}, lock: Lock{} }
 }
 
-func (tn *Tokenizer) SetInput(input string) {
+func (tn *Tokenizer) SetInput(input []rune) {
   tn.pos = 0
   tn.line = 0
   tn.col = 0
@@ -183,7 +183,7 @@ func (tn *Tokenizer) LockPosDiff() int {
   return 0
 }
 
-func (tn *Tokenizer) LockGetData() string {
+func (tn *Tokenizer) LockGetData() []rune {
   return tn.input[tn.lock.pos: tn.pos]
 }
 
@@ -192,7 +192,7 @@ func (tn *Tokenizer) IsEnd() bool {
 }
 
 func (tn *Tokenizer) EatSpaces() {
-  for tn.pos < len(tn.input) && IsSpace(rune(tn.input[tn.pos])) {
+  for tn.pos < len(tn.input) && IsSpace(tn.input[tn.pos]) {
     if tn.input[tn.pos] == '\n' {
       tn.line++
       tn.col = 0
@@ -204,7 +204,7 @@ func (tn *Tokenizer) EatSpaces() {
 }
 
 func (tn *Tokenizer) ReadNumber() {
-  c := rune(tn.input[tn.pos])
+  c := tn.input[tn.pos]
 
   if IsDigit(c) {
     for {
@@ -213,7 +213,7 @@ func (tn *Tokenizer) ReadNumber() {
         break
       }
 
-      c = rune(tn.input[tn.pos])
+      c = tn.input[tn.pos]
 
       if !IsDigit(c) {
         break
@@ -228,7 +228,7 @@ func (tn *Tokenizer) ReadNumber() {
         break
       }
 
-      c = rune(tn.input[tn.pos])
+      c = tn.input[tn.pos]
 
       if !IsDigit(c) {
         break
@@ -238,10 +238,10 @@ func (tn *Tokenizer) ReadNumber() {
 }
 
 func (tn *Tokenizer) ReadString(delim rune) {
-  c := rune(tn.input[tn.pos])
+  c := tn.input[tn.pos]
 
   if c == delim {
-    c := rune(tn.input[tn.pos + 1])
+    c := tn.input[tn.pos + 1]
 
     for !tn.IsEnd() && c != delim {
       if c == '\n' {
@@ -253,7 +253,7 @@ func (tn *Tokenizer) ReadString(delim rune) {
       tn.pos++
 
       if tn.pos < len(tn.input) {
-        c = rune(tn.input[tn.pos])
+        c = tn.input[tn.pos]
       }
     }
 
@@ -264,33 +264,34 @@ func (tn *Tokenizer) ReadString(delim rune) {
 }
 
 func (tn *Tokenizer) ReadIdent() {
-  c := rune(tn.input[tn.pos])
+  c := tn.input[tn.pos]
 
   if c == '_' || IsAlpha(c) {
     for !tn.IsEnd() && (IsAlnum(c) || c == '_') {
       tn.pos++
-      c = rune(tn.input[tn.pos])
+      c = tn.input[tn.pos]
     }
   }
 }
 
 func (tn *Tokenizer) ReadInlineComment() {
-  if tn.input[tn.pos: tn.pos + 2] == "--" {
-    c := tn.input[tn.pos]
-    tn.pos++
+  c := tn.input[tn.pos]
+  tn.pos++
 
-    for !tn.IsEnd() && (c != '\n') {
-      c = tn.input[tn.pos]
-      tn.pos++
-    }
+  for !tn.IsEnd() && (c != '\n') {
+    c = tn.input[tn.pos]
+    tn.pos++
+  }
+  if c == '\n' {
+    tn.line += 1
   }
 }
 
 func (tn *Tokenizer) ReadMultilineComment() {
-  match := tn.input[tn.pos: tn.pos + 2]
+  match := string(tn.input[tn.pos: tn.pos + 2])
 
   if match == "/*" {
-    match = tn.input[tn.pos + 1: tn.pos + 3]
+    match = string(tn.input[tn.pos + 1: tn.pos + 3])
 
     for !tn.IsEnd() && match != "*/" {
       if match[0] == '\n' {
@@ -301,7 +302,7 @@ func (tn *Tokenizer) ReadMultilineComment() {
       tn.col++
       tn.pos++
       if tn.pos < len(tn.input) - 1 {
-        match = tn.input[tn.pos: tn.pos + 2]
+        match = string(tn.input[tn.pos: tn.pos + 2])
       }
     }
 
@@ -321,11 +322,11 @@ func (tn *Tokenizer) NextToken() Token {
     return token
   }
 
-  c := rune(tn.input[tn.pos])
+  c := tn.input[tn.pos]
 
   next_c := rune(0)
   if tn.pos + 1 < len(tn.input) {
-    next_c = rune(tn.input[tn.pos + 1])
+    next_c = tn.input[tn.pos + 1]
   }
 
   if c == '-' && next_c == '-' {
@@ -348,7 +349,7 @@ func (tn *Tokenizer) NextToken() Token {
     token.ttype = NUMBER
 
     if !tn.IsEnd() {
-      c := rune(tn.input[tn.pos])
+      c := tn.input[tn.pos]
       if IsAlpha(c) {
         tn.ReadIdent()
         token.ttype = IDENT
@@ -368,14 +369,12 @@ func (tn *Tokenizer) NextToken() Token {
   } else if c == '_' || IsAlpha(c) {
     tn.Lock()
     tn.ReadIdent()
-    token.ttype = GetIdentType(tn.LockGetData())
+    token.ttype = GetIdentType(string(tn.LockGetData()))
     token.size = tn.LockPosDiff()
     tn.Commit()
   } else {
     tn.pos += token.size; 
   }
-
-  //fmt.Printf("pos: %d\n", tn.pos)
 
   tn.current = token
 
@@ -386,11 +385,12 @@ func (tn *Tokenizer) NextToken() Token {
 func _main() {
   tokenizer := NewTokenizer()
 
-  text := "-- just a comment\n select * from abc;"
+  text := []rune("-- just a comment\n select * from abc;")
+  str := string(text)
   tokenizer.SetInput(text)
 
   for !tokenizer.IsEnd() {
     token := tokenizer.NextToken()
-    token.Print(&text)
+    token.Print(&str)
   }
 }

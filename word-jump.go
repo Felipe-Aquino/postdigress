@@ -2,12 +2,12 @@ package main
 
 type Validator func(rune) bool
 
-func StrReadWhileBackwards(text string, start int, isValid Validator) int {
+func StrReadWhileBackwards(line Line, start int, isValid Validator) int {
   if start < 0 {
     return -1
   }
 
-  c := rune(text[start])
+  c := line[start]
   j := start
 
   if isValid(c) {
@@ -16,7 +16,7 @@ func StrReadWhileBackwards(text string, start int, isValid Validator) int {
       if j < 0 {
         return -1
       }
-      c := rune(text[j])
+      c := line[j]
 
       if !isValid(c) {
         return j
@@ -27,14 +27,14 @@ func StrReadWhileBackwards(text string, start int, isValid Validator) int {
   return start
 }
 
-func StrReadWhileForward(text string, start int, isValid Validator) int {
-  textLen := len(text)
+func StrReadWhileForward(line Line, start int, isValid Validator) int {
+  textLen := len(line)
 
   if start >= textLen {
     return textLen
   }
 
-  c := rune(text[start])
+  c := line[start]
   j := start
 
   if isValid(c) {
@@ -43,7 +43,7 @@ func StrReadWhileForward(text string, start int, isValid Validator) int {
       if j > textLen - 1 {
         return j
       }
-      c := rune(text[j])
+      c := line[j]
 
       if !isValid(c) {
         return j
@@ -54,7 +54,7 @@ func StrReadWhileForward(text string, start int, isValid Validator) int {
   return start
 }
 
-func FindNextWordStart(text []string, i, j int) (int, int, bool) {
+func FindNextWordStart(text Text, i, j int) (int, int, bool) {
   found := false
 
   for {
@@ -63,7 +63,7 @@ func FindNextWordStart(text []string, i, j int) (int, int, bool) {
     if lineLen == 0 {
       if i < len(text) - 1 {
         i, j = i + 1, 0
-        if len(text[i]) > 0 && !IsSpace(rune(text[i][j])) {
+        if len(text[i]) > 0 && !IsSpace(text[i][j]) {
           found = true
           break
         }
@@ -73,9 +73,9 @@ func FindNextWordStart(text []string, i, j int) (int, int, bool) {
       break
     }
 
-    if IsSpecialChar(rune(text[i][j])) {
+    if IsSpecialChar(text[i][j]) {
       j = StrReadWhileForward(text[i], j, IsSpecialChar)
-    } else if IsWordChar(rune(text[i][j])) {
+    } else if IsWordChar(text[i][j]) {
       j = StrReadWhileForward(text[i], j, IsWordChar)
     }
 
@@ -84,7 +84,7 @@ func FindNextWordStart(text []string, i, j int) (int, int, bool) {
     if j > lineLen - 1 {
       if i < len(text) - 1 {
         i, j = i + 1, 0
-        if len(text[i]) > 0 && !IsSpace(rune(text[i][j])) {
+        if len(text[i]) > 0 && !IsSpace(text[i][j]) {
           found = true
           break
         }
@@ -101,7 +101,7 @@ func FindNextWordStart(text []string, i, j int) (int, int, bool) {
   return i, j, found
 }
 
-func FindPrevWordEnd(text []string, i, j int) (int, int, bool) {
+func FindPrevWordEnd(text Text, i, j int) (int, int, bool) {
   found := false
 
   for {
@@ -110,7 +110,7 @@ func FindPrevWordEnd(text []string, i, j int) (int, int, bool) {
     if lineLen == 0 {
       if i > 0 {
         i, j = i - 1, len(text[i - 1]) - 1
-        if j > 0 && !IsSpace(rune(text[i][j])) {
+        if j > 0 && !IsSpace(text[i][j]) {
           found = true
           break
         }
@@ -119,9 +119,9 @@ func FindPrevWordEnd(text []string, i, j int) (int, int, bool) {
       break
     }
 
-    if IsSpecialChar(rune(text[i][j])) {
+    if IsSpecialChar(text[i][j]) {
       j = StrReadWhileBackwards(text[i], j, IsSpecialChar)
-    } else if IsWordChar(rune(text[i][j])) {
+    } else if IsWordChar(text[i][j]) {
       j = StrReadWhileBackwards(text[i], j, IsWordChar)
     }
 
@@ -130,7 +130,7 @@ func FindPrevWordEnd(text []string, i, j int) (int, int, bool) {
     if j < 0 {
       if i > 0 {
         i, j = i - 1, len(text[i - 1]) - 1
-        if j > 0 && !IsSpace(rune(text[i][j])) {
+        if j > 0 && !IsSpace(text[i][j]) {
           found = true
           break
         }
@@ -146,13 +146,13 @@ func FindPrevWordEnd(text []string, i, j int) (int, int, bool) {
   return i, j, found
 }
 
-func FindPrevWordStart(text []string, i, j int) (int, int, bool) {
-  c := rune(text[i][j])
+func FindPrevWordStart(text Text, i, j int) (int, int, bool) {
+  c := text[i][j]
   if j > 0 && len(text) > 1 {
-    if IsWordChar(c) && IsWordChar(rune(text[i][j - 1])) {
+    if IsWordChar(c) && IsWordChar(text[i][j - 1]) {
       j = StrReadWhileBackwards(text[i], j, IsWordChar)
       return i, j + 1, true
-    } else if IsSpecialChar(c) && IsSpecialChar(rune(text[i][j - 1])) {
+    } else if IsSpecialChar(c) && IsSpecialChar(text[i][j - 1]) {
       j = StrReadWhileBackwards(text[i], j, IsSpecialChar)
       return i, j + 1, true
     }
@@ -160,7 +160,7 @@ func FindPrevWordStart(text []string, i, j int) (int, int, bool) {
 
   i, j, found := FindPrevWordEnd(text, i, j)
   if found {
-    c = rune(text[i][j])
+    c = text[i][j]
 
     if IsWordChar(c) {
       j = StrReadWhileBackwards(text[i], j, IsWordChar)
@@ -175,14 +175,14 @@ func FindPrevWordStart(text []string, i, j int) (int, int, bool) {
   return i, j, false
 }
 
-func FindNextWordEnd(text []string, i, j int) (int, int, bool) {
-  c := rune(text[i][j])
+func FindNextWordEnd(text Text, i, j int) (int, int, bool) {
+  c := text[i][j]
 
   if j < len(text[i]) - 1 {
-    if IsWordChar(c) && IsWordChar(rune(text[i][j + 1])) {
+    if IsWordChar(c) && IsWordChar(text[i][j + 1]) {
       j = StrReadWhileForward(text[i], j, IsWordChar)
       return i, j - 1, true
-    } else if IsSpecialChar(c) && IsSpecialChar(rune(text[i][j + 1])) {
+    } else if IsSpecialChar(c) && IsSpecialChar(text[i][j + 1]) {
       j = StrReadWhileForward(text[i], j, IsSpecialChar)
       return i, j - 1, true
     }
@@ -190,7 +190,7 @@ func FindNextWordEnd(text []string, i, j int) (int, int, bool) {
 
   i, j, found := FindNextWordStart(text, i, j)
   if found {
-    c = rune(text[i][j])
+    c = text[i][j]
 
     if IsWordChar(c) {
       j = StrReadWhileForward(text[i], j, IsWordChar)
@@ -205,7 +205,7 @@ func FindNextWordEnd(text []string, i, j int) (int, int, bool) {
   return i, j, found
 }
 
-func FindCharForwards(text []string, ch rune, i, j int, multiline bool) (int, int, bool) {
+func FindCharForwards(text Text, ch rune, i, j int, multiline bool) (int, int, bool) {
 
   found := false
 
@@ -218,7 +218,7 @@ func FindCharForwards(text []string, ch rune, i, j int, multiline bool) (int, in
   multiln1:
     for i < len(text) {
       for j < len(text[i]) {
-        if rune(text[i][j]) == ch {
+        if text[i][j] == ch {
           found = true
           break multiln1
         }
@@ -231,7 +231,7 @@ func FindCharForwards(text []string, ch rune, i, j int, multiline bool) (int, in
   } else {
 
     for j < len(text[i]) {
-      if rune(text[i][j]) == ch {
+      if text[i][j] == ch {
         found = true
         break
       }
@@ -242,7 +242,7 @@ func FindCharForwards(text []string, ch rune, i, j int, multiline bool) (int, in
   return i, j, found
 }
 
-func FindCharBackwards(text []string, ch rune, i, j int, multiline bool) (int, int, bool) {
+func FindCharBackwards(text Text, ch rune, i, j int, multiline bool) (int, int, bool) {
   found := false
 
   if i > len(text) - 1 {
@@ -254,7 +254,7 @@ func FindCharBackwards(text []string, ch rune, i, j int, multiline bool) (int, i
   multiln2:
     for {
       for j >= 0 {
-        if rune(text[i][j]) == ch {
+        if text[i][j] == ch {
           found = true
           break multiln2
         }
@@ -272,7 +272,7 @@ func FindCharBackwards(text []string, ch rune, i, j int, multiline bool) (int, i
   } else {
 
     for j >= 0 {
-      if rune(text[i][j]) == ch {
+      if text[i][j] == ch {
         found = true
         break
       }
@@ -281,16 +281,4 @@ func FindCharBackwards(text []string, ch rune, i, j int, multiline bool) (int, i
   }
 
   return i, j, found
-}
-
-func Replace(s string, r rune, at int) string {
-  if at > len(s) - 1 {
-    return s
-  }
-
-  if at == len(s) - 1 {
-    return s[:at] + string(r)
-  }
-
-  return s[:at] + string(r) + s[at + 1:]
 }

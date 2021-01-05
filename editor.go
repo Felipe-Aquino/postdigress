@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/rivo/tview"
   "github.com/gdamore/tcell"
-  "strings"
+  //dfn"strings"
   "fmt"
 )
 
@@ -54,7 +54,8 @@ type Editor struct {
 
   tokenizer *Tokenizer
   highlights []Highlight
-  fullText string
+  fullText []rune
+  modified bool
 
   onModeChanged func(Mode)
   onExecute func(string)
@@ -68,29 +69,15 @@ type Editor struct {
 func NewEditor() *Editor {
   e := &Editor{
     tv: tview.NewTextView(),
-    text: Text([]string{
-      "-- just a commnet", 
+    text: WrapLines(
+      "-- just a commnet ç", 
       "select * from test;",
       "",
       "insert into test (name, value, created_at) values",
       "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
       "",
       "/* multiline comment */",
-    }),
+    ),
     mode: NORMAL,
     onModeChanged: func(m Mode) {
     },
@@ -101,7 +88,7 @@ func NewEditor() *Editor {
   e.history = NewDumbHistory(5)
 
   e.tokenizer = NewTokenizer()
-  e.fullText = ""
+  e.modified = true
 
 	e.tv.
     SetDynamicColors(true).
@@ -121,7 +108,7 @@ func NewEditor() *Editor {
 
 func (e *Editor) EnableLineNumber(enable bool) {
   e.useLineNumbers = enable
-  e.fullText = ""
+  e.modified = true
   e.UpdateText()
 }
 
@@ -136,19 +123,19 @@ func (e *Editor) NewLineAt(row int, save bool) {
   }
 
   e.text = e.text.InsertLines(row, "")
-  e.fullText = ""
+  e.modified = true
 }
 
 func (e *Editor) InsertYankedAfter(row, col int) {
   e.SaveHistory()
   col = Min(col + 1, e.text.LineLen(row))
   e.text = e.text.InsertAt(row, col, e.yankedLines)
-  e.fullText = ""
+  e.modified = true
 }
 
 func (e *Editor) InsertCharBefore(ch rune, row, col int) {
   e.text = e.text.InsertAt(row, col, WrapLines(string(ch)))
-  e.fullText = ""
+  e.modified = true
 }
 
 func (e *Editor) DeleteCharBefore(row, col int) {
@@ -160,7 +147,7 @@ func (e *Editor) DeleteCharBefore(row, col int) {
   } else {
     e.text = e.text.DeleteRange(row, col - 1, row, col - 1)
   }
-  e.fullText = ""
+  e.modified = true
 }
 
 func (e *Editor) MoveCursorUp() {
@@ -243,7 +230,7 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
         state := e.history.Redo()
         if state != nil {
           e.text, e.cursorX, e.cursorY = state.Unpack()
-          e.fullText = ""
+          e.modified = true
         }
       }
       e.UpdateText()
@@ -285,7 +272,7 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
     case '0':
       e.cursorX = 0
     case '$':
-      if !e.text.IsLineEmpty(e.cursorY) {
+      if e.text.LineLen(e.cursorY) != 0 {
         e.cursorX = e.text.LineLen(e.cursorY) - 1
       }
     case 'o':
@@ -304,7 +291,7 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
       if e.cursorX < lineLen {
         e.SaveHistory()
         e.yankedLines = e.text.DeleteSubStrAt(e.cursorY, e.cursorX, lineLen)
-        e.fullText = ""
+        e.modified = true
       }
     case 'Y':
       lineLen := e.text.LineLen(e.cursorY)
@@ -322,7 +309,7 @@ func (e *Editor) HandleKeyboard(ch rune, key tcell.Key) bool {
       state := e.history.Undo()
       if state != nil {
         e.text, e.cursorX, e.cursorY = state.Unpack()
-        e.fullText = ""
+        e.modified = true
       }
     }
   } else if e.mode == VISUAL {
@@ -456,7 +443,7 @@ func (e *Editor) DeleteCurrentWord(fromStart bool) {
     e.cursorX = xStart
   }
 
-  e.fullText = ""
+  e.modified = true
 }
 
 func (e *Editor) DeleteOrYankInside(ch rune, del bool) {
@@ -497,7 +484,7 @@ func (e *Editor) DeleteOrYankInside(ch rune, del bool) {
   if del {
     e.SaveHistory()
     e.text = e.text.DeleteRange(yStart, xStart, yEnd, xEnd)
-    e.fullText = ""
+    e.modified = true
     e.cursorX = xStart
   }
 }
@@ -507,7 +494,7 @@ func (e *Editor) SetYanked(txt Text) {
 }
 
 func (e *Editor) YankCurrentLine() {
-  e.yankedLines = WrapLines("", e.text.Line(e.cursorY))
+  e.yankedLines = WrapLinesR(Line{}, e.text.Line(e.cursorY))
 }
 
 func (e *Editor) DelYankCurrentLine() {
@@ -517,11 +504,11 @@ func (e *Editor) DelYankCurrentLine() {
   if e.text.Len() > 1 {
     e.text = e.text.DeleteLines(e.cursorY, e.cursorY)
   } else {
-    e.text = Text([]string{""})
+    e.text = WrapLinesR(Line{})
   }
 
   e.cursorY = Min(e.cursorY, e.text.Len()- 1)
-  e.fullText = ""
+  e.modified = true
 }
 
 func (e *Editor) PasteYankedBuffer() {
@@ -542,7 +529,7 @@ func (e *Editor) HandleBufferedCommand(ch rune) {
   case 'r':
     e.SaveHistory()
     e.text.ReplaceChar(e.cursorY, e.cursorX, ch)
-    e.fullText = ""
+    e.modified = true
   case 'y':
     switch ch {
     case 'i':
@@ -583,7 +570,7 @@ func (e *Editor) HandleBufferedCommand(ch rune) {
       if e.cursorX < lineLen {
         e.SaveHistory()
         e.yankedLines = e.text.DeleteSubStrAt(e.cursorY, e.cursorX, lineLen)
-        e.fullText = ""
+        e.modified = true
       }
     case 'd':
       e.DelYankCurrentLine()
@@ -620,7 +607,7 @@ func (e *Editor) SetText(text Text) {
   }
 
   e.text = text
-  e.fullText = ""
+  e.modified = true
   e.UpdateText()
 }
 
@@ -634,8 +621,8 @@ func NumDig(n int) int {
   return count
 }
 
-func (e *Editor) GetFullText() string {
-  var builder strings.Builder
+func (e *Editor) GetFullText() []rune {
+  result := []rune{}
 
   strPad := ""
 
@@ -648,27 +635,25 @@ func (e *Editor) GetFullText() string {
 
   for i, line := range e.text {
     if e.useLineNumbers {
-      builder.WriteString(fmt.Sprintf(strPad, i + 1))
+      result = append(result, []rune(fmt.Sprintf(strPad, i + 1))...)
     }
 
-    builder.WriteString(line)
-    builder.WriteString(" \n") // Adding space to be able to place cursor at the end of a line
+    result = append(result, line...)
+    result = append(result, ' ', '\n') // Adding space to be able to place cursor at the end of a line
   }
-  return builder.String()
+
+  return result
 }
 
 func Colorize(tt TokenType) bool {
   return tt == NUMBER || tt == STRING || tt == TYPE || tt == KEYWORD || tt == COMMENT
 }
 
-func InsertCursorTag(s string, at int) string {
-  return s[:at] + "[\"cursor\"]" + string(s[at]) + "[\"\"]" + s[at + 1:] 
-}
-
 func (e *Editor) GenHighlight() {
-  if e.fullText != "" {
+  if !e.modified {
     return
   }
+  e.modified = false
 
   e.highlights = []Highlight{}
 
@@ -714,7 +699,11 @@ func (e *Editor) GenHighlight() {
   }
 }
 
-func (e *Editor) GetParsedText() string {
+func Tint(value []rune, color string) []rune {
+  return append([]rune("[" + color + "]"), append(value, []rune("[white]")...)...)
+}
+
+func (e *Editor) GetParsedText() []rune {
   e.GenHighlight()
 
   pos := 0
@@ -725,10 +714,10 @@ func (e *Editor) GetParsedText() string {
 
   text := e.fullText
 
-  parsedText := ""
+  parsedText := []rune{}
 
   for _, hl := range e.highlights {
-    value := text[hl.start: hl.end]
+    value := append([]rune{}, text[hl.start: hl.end]...)
 
     if (e.mode != VISUAL) && pos >= hl.start && pos < hl.end {
       value = InsertCursorTag(value, pos - hl.start)
@@ -736,28 +725,28 @@ func (e *Editor) GetParsedText() string {
 
     switch hl.color {
     case Yellow:
-      value = "[yellow]" + value + "[white]"
+      value = Tint(value, "yellow")
     case Pink:
-      value = "[hotpink]" + value + "[white]"
+      value = Tint(value, "hotpink")
     case Red:
-      value = "[tomato]" + value + "[white]"
+      value = Tint(value, "tomato")
     case Violet:
-      value = "[violet]" + value + "[white]"
+      value = Tint(value, "violet")
     case Blue:
-      value = "[steelblue]" + value + "[white]"
+      value = Tint(value, "steelblue")
     case Green:
-      value = "[lawngreen]" + value + "[white]"
+      value = Tint(value, "lawngreen")
     case Orange:
-      value = "[orangered]" + value + "[white]"
+      value = Tint(value, "orangered")
     case Gray:
-      value = "[lightgray]" + value + "[white]"
+      value = Tint(value, "lightgray")
     case Wheat:
-      value = "[wheat]" + value + "[white]"
+      value = Tint(value, "wheat")
     case Turquoise:
-      value = "[turquoise]" + value + "[white]"
+      value = Tint(value, "turquoise")
     }
 
-    parsedText += value
+    parsedText = append(parsedText, value...)
   }
 
   return parsedText
@@ -767,14 +756,14 @@ func (e *Editor) GetSelectedText() string {
   if e.mode == VISUAL {
     text := ""
     for i := e.selected.start; i < e.selected.start + e.selected.size; i++ {
-      text += e.text.Line(i) + " \n"
+      text += e.text.Line(i).String() + " \n"
     }
     return text
   }
   return ""
 }
 
-func (e *Editor) InsertVisualTag(text string) string {
+func (e *Editor) InsertVisualTag(text []rune) []rune {
   lineCount := 1
   start, end := 0, 0
   startFound := false
@@ -798,10 +787,12 @@ func (e *Editor) InsertVisualTag(text string) string {
     end = len(text) - 1
   }
 
-  if len(text) == 0 || end >= len(text) || end < 0 || start < 0 || start >= len(text) || start >= end {
-    panic(fmt.Sprintf("Err: len: %d, start: %d, end: %d, count: %d --- %v", len(text), start, end, lineCount, e.selected))
-  }
-  return text[:start] + `["visual"]` + text[start:end] + `[""]` + text[end:]
+  result := append([]rune{}, text[:start]...)
+  result = append(result, []rune(`["visual"]`)...)
+  result = append(result, text[start:end]...)
+  result = append(result, []rune(`[""]`)...)
+  result = append(result, text[end:]...)
+  return result
 }
 
 func (e *Editor) UpdateText() {
@@ -810,6 +801,6 @@ func (e *Editor) UpdateText() {
     text = e.InsertVisualTag(text)
   }
 
-  e.tv.SetText(text)
+  e.tv.SetText(string(text))
   e.tv.ScrollToHighlight()
 }

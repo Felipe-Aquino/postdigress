@@ -75,17 +75,13 @@ func (s *Status) SetMode(m StatusMode) {
 }
 
 func (s *Status) Clear() {
-  s.text.SetLine(0, "")
+  s.cursor = 0
+  s.text.SetLine(0, Line{})
 }
 
 func (s *Status) SaveHistory() {
   es := NewEditorState(s.text.Clone(), s.cursor, 0)
   s.history.Push(es)
-}
-
-// TODO: Duplicated
-func SInsertCursorTag(s string, at int) string {
-  return s[:at] + "[\"cursor\"]" + string(s[at]) + "[\"\"]" + s[at + 1:] 
 }
 
 func (s *Status) SetEnterCb(cb func(string)) {
@@ -156,15 +152,14 @@ func (s *Status) HandleKeyboard(ch rune, key tcell.Key) {
         s.MoveCursorLeft()
       }
     case tcell.KeyCR:
-      if s.text.Line(0) != "" {
+      if s.text.LineLen(0) != 0 {
         s.SaveHistory()
       }
 
       text := s.text.Line(0)
       s.Clear()
 
-      s.onEnter(text)
-      s.cursor = 0
+      s.onEnter(text.String())
     default:
       if key == 0 {
         s.history.RedoToLast()
@@ -180,56 +175,21 @@ func (s *Status) HandleKeyboard(ch rune, key tcell.Key) {
 }
 
 func (s *Status) SetText(text string) {
-  s.text.SetLine(0, text)
+  s.text.SetLine(0, Line(text))
   s.UpdateText()
 }
 
 func (s *Status) UpdateText() {
+  startRune := append([]rune{}, []rune(s.startWith)...)
+
   if s.mode == Prompt {
     cursor := s.cursor + len(s.startWith)
 
-    text := SInsertCursorTag(s.startWith + s.text.Line(0) + " ", cursor)
-    s.tv.SetText(text)
+    text := append(append(startRune, s.text.Line(0)...), ' ', ' ')
+    text = InsertCursorTag(text, cursor)
+    s.tv.SetText(string(text))
     s.tv.ScrollTo(cursor, 0)
   } else {
-    s.tv.SetText(s.text.Line(0))
+    s.tv.SetText(s.text.Line(0).String())
   }
-}
-
-func dddmain() {
-	app := tview.NewApplication()
-
-  command := NewCommand()
-
-  result := tview.NewTextView()
-
-  bar := NewStatus()
-  bar.ChangeStartString(":")
-  bar.SetMode(Prompt)
-
-  bar.SetEnterCb(func(s string) {
-    returned, err := command.Run(s)
-
-    if err != nil {
-      result.SetText(s + "\n" + err.Error())
-    } else {
-      result.SetText(s + "\n" + returned)
-    }
-  })
-
-  bar.SetCancelCb(func() {
-
-  })
-
-  bar.tv.Highlight("cursor")
-
-  flex := tview.NewFlex().
-    SetDirection(tview.FlexRow).
-    AddItem(bar.tv, 1, 1, true).
-    AddItem(result, 0, 1, false)
-
-	if err := app.SetRoot(flex, true).Run(); err != nil {
-		panic(err)
-	}
-
 }
