@@ -4,6 +4,10 @@ import (
 	"github.com/rivo/tview"
   "github.com/gdamore/tcell"
   "time"
+  "fmt"
+
+  "strings"
+	"database/sql"
 )
 
 type TableMode byte
@@ -131,8 +135,12 @@ func NewRunPage(c *Context) *RunPage {
   rp.command.Register("yank-line", rp.YankLine)
   rp.command.Register("import", rp.Import)
   rp.command.Register("export", rp.Export)
-  rp.command.Register("select-for", rp.YankSelectFor)
   rp.command.Register("enable", rp.Enable)
+  rp.command.Register("wait", rp.Wait)
+
+  rp.command.Register("select-for", rp.YankSelectFor)
+  rp.command.Register("insert-for",
+    func(t string) string { return YankInsertFor(rp, c.db, t) }) 
 
   rp.status = NewStatus()
   rp.status.ChangeStartString(":")
@@ -320,4 +328,65 @@ func (rp *RunPage) YankSelectFor(table string) string {
   rp.editor.SetYanked(text)
 
   return "Select text yanked."
+}
+
+func (rp *RunPage) Wait(t int64) string {
+  time.Sleep(time.Duration(t) * time.Second)
+  return fmt.Sprintf("%d seconds waited.", t)
+}
+
+func YankInsertFor(rp *RunPage, db *sql.DB, table string) string {
+  query := `select column_name, data_type
+            from information_schema.columns
+            where table_name = '` + table + "';"
+
+  result := GetQueryResult(db, query)
+
+  columnNames := "("
+  valuePrototye := "("
+  total := len(result.values)
+
+  if total == 0 {
+    return "Couldn't generate query for " + table
+  }
+
+  for i, e := range result.values {
+    columnType := e[1]
+
+    columnNames += e[0]
+
+    if strings.HasPrefix(columnType, "bool") {
+      valuePrototye += "false"
+
+    } else if strings.Contains(columnType, "char") {
+      valuePrototye += "''"
+
+    } else if strings.Contains(columnType, "time") ||
+              strings.Contains(columnType, "date") {
+      valuePrototye += "'YYYY-MM-DD HH:mm:ssZ'"
+
+    } else if strings.Contains(columnType, "int") {
+      valuePrototye += "0"
+
+    } else if strings.HasPrefix(columnType, "double")  ||
+              strings.HasPrefix(columnType, "numeric") ||
+              strings.Contains(columnType, "real")     ||
+              strings.Contains(columnType, "decimal") {
+      valuePrototye += "0.0"
+
+    }
+
+    if i != total - 1 {
+      columnNames   += ", "
+      valuePrototye += ", "
+    }
+  }
+
+  valuePrototye += ")"
+  columnNames   += ")"
+
+  query = fmt.Sprintf("INSERT INTO %s %s VALUES", table, columnNames)
+
+  rp.editor.SetYanked(WrapLines(query, valuePrototye))
+  return "Insert query yanked."
 }

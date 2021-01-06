@@ -241,20 +241,23 @@ func (tn *Tokenizer) ReadString(delim rune) {
   c := tn.input[tn.pos]
 
   if c == delim {
-    c := tn.input[tn.pos + 1]
+    for !tn.IsEnd() {
+      tn.pos++
 
-    for !tn.IsEnd() && c != delim {
+      if tn.pos < len(tn.input) {
+        c = tn.input[tn.pos]
+      }
+
+      if c == delim {
+        break
+      }
+
       if c == '\n' {
         tn.col = 0
         tn.line++
       }
 
       tn.col++
-      tn.pos++
-
-      if tn.pos < len(tn.input) {
-        c = tn.input[tn.pos]
-      }
     }
 
     if c == delim {
