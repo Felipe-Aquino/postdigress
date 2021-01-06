@@ -66,8 +66,9 @@ The commands available are:
 - yank &lt;str>: copy a string to the yank buffer of the editor
 - add &lt;num> &lt;num>: add 2 numbers
 - sub &lt;num> &lt;num>: subtract 2 numbers
-- select-for &lt;str>: receives a table and generate a select statement for it
-- insert-for &lt;str>: receives a table and generate a insert statement for it
+- table-get &lt;row> &lt;col>: yank a cell, row ou column of the table. row and col are either a number or a '-' (dash).
+- select-for &lt;str>: receives a table name and generate a select statement for it
+- insert-for &lt;str>: receives a table name and generate a insert statement for it
 
 You can compose commands by using a ***pipe*** syntax.
 So the following expression copies the current time, in utc, to the yank buffer: 

@@ -6,6 +6,7 @@ import (
   "time"
   "fmt"
 
+  "strconv"
   "strings"
 	"database/sql"
 )
@@ -136,8 +137,8 @@ func NewRunPage(c *Context) *RunPage {
   rp.command.Register("import", rp.Import)
   rp.command.Register("export", rp.Export)
   rp.command.Register("enable", rp.Enable)
-  rp.command.Register("wait", rp.Wait)
 
+  rp.command.Register("table-get", rp.TableGet)
   rp.command.Register("select-for", rp.YankSelectFor)
   rp.command.Register("insert-for",
     func(t string) string { return YankInsertFor(rp, c.db, t) }) 
@@ -323,16 +324,56 @@ func (rp *RunPage) Export(path string) string {
   return "Exported to " + path
 }
 
+func (rp *RunPage) TableGet(row, col string) string {
+  nRow, err1 := strconv.Atoi(row)
+  nCol, err2 := strconv.Atoi(col)
+
+  if err1 != nil && err2 != nil {
+    return "Could not get the value(s)"
+  }
+  if row == "-" && err2 == nil {
+    nRow = rp.table.GetRowCount()
+
+    result := "("
+    for i := 0; i < nRow; i++ {
+      result += "'" + rp.table.GetCell(i, nCol).Text + "'"
+
+      if i != nRow - 1 {
+        result += ", "
+      }
+    }
+    result += ")"
+
+    rp.editor.SetYanked(WrapLines(result))
+    return "Values yanked."
+  }
+  if col == "-" && err1 == nil {
+    nCol = rp.table.GetColumnCount()
+
+    result := "("
+    for i := 0; i < nCol; i++ {
+      result += "'" + rp.table.GetCell(nRow, i).Text + "'"
+
+      if i != nCol - 1 {
+        result += ", "
+      }
+    }
+    result += ")"
+
+    rp.editor.SetYanked(WrapLines(result))
+    return "Values yanked."
+  }
+
+  result := rp.table.GetCell(nRow, nCol).Text
+  rp.editor.SetYanked(WrapLines(result))
+  return "Value yanked."
+}
+
 func (rp *RunPage) YankSelectFor(table string) string {
   text := WrapLines("", "SELECT * FROM " + table + ";")
   rp.editor.SetYanked(text)
 
   return "Select text yanked."
-}
-
-func (rp *RunPage) Wait(t int64) string {
-  time.Sleep(time.Duration(t) * time.Second)
-  return fmt.Sprintf("%d seconds waited.", t)
 }
 
 func YankInsertFor(rp *RunPage, db *sql.DB, table string) string {

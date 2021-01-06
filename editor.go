@@ -69,13 +69,8 @@ func NewEditor() *Editor {
   e := &Editor{
     tv: tview.NewTextView(),
     text: WrapLines(
-      "-- just a commnet ç", 
-      "select * from test;",
+      "-- SQL ", 
       "",
-      "insert into test (name, value, created_at) values",
-      "('fifth', 30, '2020-10-10 22:22:22Z')",
-      "",
-      "/* multiline comment */",
     ),
     mode: NORMAL,
     onModeChanged: func(m Mode) {
