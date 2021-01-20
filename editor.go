@@ -488,7 +488,7 @@ func (e *Editor) SetYanked(txt Text) {
 }
 
 func (e *Editor) YankCurrentLine() {
-  e.yankedLines = WrapLinesR(Line{}, e.text.Line(e.cursorY))
+  e.yankedLines = WrapLinesR(Line{}, e.text.Line(e.cursorY).Clone())
 }
 
 func (e *Editor) DelYankCurrentLine() {

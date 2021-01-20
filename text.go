@@ -8,6 +8,12 @@ func (l Line) String() string {
   return string(l)
 }
 
+func (l Line) Clone() Line {
+  newLine := make([]rune, len(l))
+  copy(newLine, l)
+  return Line(newLine)
+}
+
 func LinesFromStrs(strs []string) []Line {
   lines := []Line{}
 
@@ -32,7 +38,13 @@ func (t Text) Len() int {
 }
 
 func (t Text) Clone() Text {
-  return Text(append([]Line{}, t...))
+  newText := Text([]Line{})
+
+  for _, l := range t {
+     newText = append(newText, l.Clone())
+  }
+
+  return newText;
 }
 
 func (t Text) FirstLine() Line {

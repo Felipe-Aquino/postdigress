@@ -1,5 +1,7 @@
 package main
 
+//TODO: implement export table
+
 import (
 	"github.com/rivo/tview"
   "github.com/gdamore/tcell"

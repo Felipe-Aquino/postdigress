@@ -147,6 +147,10 @@ func FindPrevWordEnd(text Text, i, j int) (int, int, bool) {
 }
 
 func FindPrevWordStart(text Text, i, j int) (int, int, bool) {
+  if j >= text.LineLen(i) {
+    return i, j, false
+  }
+
   c := text[i][j]
   if j > 0 && len(text) > 1 {
     if IsWordChar(c) && IsWordChar(text[i][j - 1]) {
@@ -176,6 +180,10 @@ func FindPrevWordStart(text Text, i, j int) (int, int, bool) {
 }
 
 func FindNextWordEnd(text Text, i, j int) (int, int, bool) {
+  if j >= text.LineLen(i) {
+    return i, j, false
+  }
+
   c := text[i][j]
 
   if j < len(text[i]) - 1 {
