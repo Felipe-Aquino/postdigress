@@ -113,6 +113,12 @@ func GetQueryResult(db *sql.DB, query string) QueryResult {
     result.values = append(result.values, row)
   }
 
+  if len(result.values) == 0 {
+    for i := 0; i < len(colNames); i++ {
+      result.columns[i] = fmt.Sprint(colNames[i])
+    }
+  }
+
   return result
 }
 
