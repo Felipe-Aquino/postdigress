@@ -6,18 +6,20 @@ import (
   "fmt"
   "strings"
   "regexp"
-  "strconv"
 )
 
 var columnsFields [6]string = [6]string{"Column", "Type", "Default", "Primary Key", "Null?"}
 
 var indexesFields [6]string = [6]string{"Name", "P. key", "Unique", "Column", "Size"}
 
+type TableNames []string
+
 type StructPage struct {
   dbTitle      *tview.TextView
   columnsTitle *tview.TextView
   indexesTitle *tview.TextView
 
+  selector *Selector
   dbSelect *tview.TextView
 
   columnsTable *tview.Table
@@ -28,7 +30,6 @@ type StructPage struct {
   focusedType ComponentType
 
   tables []string
-  selectedTable int
   cursor int
 }
 
@@ -37,7 +38,6 @@ func NewStructPage(c *Context) *StructPage {
 
   sp.focusedType = MENU
 
-  sp.selectedTable = -1
   sp.tables = []string{}
 
   sp.dbTitle = tview.NewTextView().
@@ -52,25 +52,15 @@ func NewStructPage(c *Context) *StructPage {
 		SetRegions(true).
 		SetWrap(false)
 
-  sp.dbSelect.
-    SetInputCapture(func (event *tcell.EventKey) *tcell.EventKey {
-      if event.Rune() == 'j' {
-        if sp.cursor < len(sp.tables) - 1 {
-          sp.cursor += 1
-          sp.dbSelect.Highlight(strconv.Itoa(sp.cursor))
-        }
-      } else if event.Rune() == 'k' {
-        if sp.cursor > 0 {
-          sp.cursor -= 1
-          sp.dbSelect.Highlight(strconv.Itoa(sp.cursor))
-        }
-      } else if event.Key() == tcell.KeyCR {
-        sp.SelectTable(sp.cursor)
-        go sp.QueryTableInfo(c, sp.tables[sp.selectedTable])
-      }
+  sp.selector = NewSelector(sp.dbSelect, TableNames([]string{}), true)
 
-      return event
-    })
+  sp.selector.SetSelectedCb(func (idx int) {
+      go sp.QueryTableInfo(c, sp.tables[idx])
+  })
+
+  sp.selector.SetDeleteCb(func (idx int) bool {
+    return false
+  })
 
   sp.SetTables([]string{})
 
@@ -145,31 +135,7 @@ func (sp *StructPage) SetDBTitleName(name string) {
 
 func (sp *StructPage) SetTables(tables []string) {
   sp.tables = tables
-  sp.selectedTable = -1
-  sp.cursor = 0
-
-  text := ""
-  for i, table := range tables {
-    text += fmt.Sprintf(" [\"%d\"] %s [\"\"]\n", i, table)
-  }
-
-  sp.dbSelect.SetText(text)
-  sp.dbSelect.Highlight("0")
-}
-
-func (sp *StructPage) SelectTable(index int) {
-  sp.selectedTable = index
-
-  text := ""
-  for i, table := range sp.tables {
-    if i != index {
-      text += fmt.Sprintf(" [\"%d\"] %s [\"\"]\n", i, table)
-    } else {
-      text += fmt.Sprintf(" [\"%d\"][orangered] %s [white][\"\"]\n", i, table)
-    }
-  }
-
-  sp.dbSelect.SetText(text)
+  sp.selector.SetItems(TableNames(tables))
 }
 
 func (sp *StructPage) SetCompType(t ComponentType) {
@@ -284,5 +250,30 @@ func AdaptConstraintData(values [][]string) {
       values[i][3] = matches[1]
     }
   }
+}
+
+func (tn TableNames) GetItemName(at int) string {
+  if at < len(tn) {
+    return tn[at]
+  }
+  return ""
+}
+
+func (tn TableNames) Len() int {
+  return len(tn)
+}
+
+func (tn TableNames) Remove(at int) Enumerable {
+  tnLen := len(tn)
+
+  if at == tnLen - 1 {
+    return tn[:at]
+  }
+
+  if tnLen  > 0 && at < tnLen  - 1 {
+    return append(tn[:at], tn[at + 1:]...)
+  }
+
+  return TableNames([]string{})
 }
 

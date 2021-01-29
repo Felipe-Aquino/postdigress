@@ -53,12 +53,14 @@ func NewSelector(tv *tview.TextView, items Enumerable, appendItems bool) *Select
         s.cursor = c
         s.tv.Highlight(strconv.Itoa(s.cursor))
       }
+
     } else if event.Key() == tcell.KeyCR {
       s.SelectItem(s.cursor)
       s.onSelect(s.selected)
     }
 
-    return event
+    s.tv.ScrollToHighlight()
+    return nil
   })
 
   s.initialText = ""
